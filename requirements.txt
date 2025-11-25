@@ -1,2 +1,17 @@
 streamlit
-google-cloud-vision
+requests
+
+### 3. Ahora sí: Pega tu API Key en los "Secrets"
+
+Ahora que el código está preparado para recibir tu llave, ve a la web de **Streamlit Cloud**:
+
+1.  Ve a tu App y haz clic en **Settings** (Configuración) o "Manage App".
+2.  Busca la sección **Secrets** (Secretos).
+3.  Escribe esto exactamente (sustituyendo `AIza...` por tu clave real):
+
+```toml
+GOOGLE_API_KEY = "AIzaSyBmlQy..........................."
+
+4.  Dale a **Save** (Guardar).
+
+¡Y listo! Al reiniciar la app, funcionará perfectamente con tu clave sencilla. 🚀
