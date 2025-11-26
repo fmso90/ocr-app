@@ -3,83 +3,95 @@ import requests
 import base64
 import re
 
-# --- 1. CONFIGURACIÓN DE PÁGINA Y ESTILO PREMIUM ---
+# --- 1. CONFIGURACIÓN DE PÁGINA Y MODO OSCURO ---
 st.set_page_config(
-    page_title="F90 | OCR Registral",
+    page_title="Herramienta OCR Registral", # Título genérico
     page_icon="⚖️",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# Inyectamos CSS para transformar la UI estándar de Streamlit en algo PRO
+# Inyectamos CSS para el Diseño "Dark Premium"
 st.markdown("""
 <style>
-    /* Fondo general */
+    /* Fondo General Negro */
     .stApp {
-        background-color: #f8f9fa;
+        background-color: #000000;
+        color: #ffffff;
     }
     
-    /* Contenedor principal tipo 'Tarjeta' */
+    /* Contenedor principal (Tarjeta oscura) */
     div.block-container {
-        background-color: #ffffff;
+        background-color: #121212; /* Gris casi negro */
         padding: 3rem;
         border-radius: 15px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        border: 1px solid #333333;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         max-width: 800px;
         margin-top: 2rem;
     }
 
-    /* Títulos */
+    /* Títulos y Textos */
     h1 {
-        color: #0f2b46; /* Azul Marino Legal */
+        color: #ffffff !important;
         font-family: 'Helvetica Neue', sans-serif;
         font-weight: 700;
         text-align: center;
         margin-bottom: 0.5rem;
     }
     h3 {
-        color: #4a5568;
+        color: #a0a0a0 !important;
         font-size: 1.1rem;
         font-weight: 400;
         text-align: center;
         margin-bottom: 2rem;
     }
+    p, label, div {
+        color: #e0e0e0;
+    }
 
-    /* Botones personalizados */
+    /* Botones (Blanco/Gris para contraste elegante en fondo negro) */
     div.stButton > button {
-        background-color: #0f2b46;
-        color: white;
+        background-color: #ffffff;
+        color: #000000;
         border-radius: 8px;
         border: none;
         padding: 0.6rem 1.2rem;
-        font-weight: 600;
+        font-weight: 700;
         width: 100%;
         transition: all 0.3s ease;
     }
     div.stButton > button:hover {
-        background-color: #1a3c5e;
-        box-shadow: 0 4px 12px rgba(15, 43, 70, 0.2);
-        color: white;
+        background-color: #cccccc;
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+        color: #000000;
     }
 
-    /* Área de texto */
+    /* Área de texto (Look Terminal moderno) */
     .stTextArea textarea {
-        background-color: #fcfcfc;
-        border: 1px solid #e2e8f0;
+        background-color: #0a0a0a;
+        border: 1px solid #333333;
         border-radius: 8px;
         font-family: 'Courier New', monospace;
-        color: #2d3748;
+        color: #00ff41; /* Verde terminal suave o blanco? Ponemos gris claro para seriedad */
+        color: #d1d5db;
     }
 
-    /* Uploader */
+    /* Uploader (Zona de carga) */
     [data-testid="stFileUploader"] {
-        border: 2px dashed #cbd5e0;
+        border: 1px dashed #555;
         border-radius: 10px;
         padding: 20px;
-        background-color: #fafbfc;
+        background-color: #1a1a1a;
     }
     
-    /* Ocultar elementos de Streamlit (Footer, Menu hamburguesa) */
+    /* Mensajes de éxito/error */
+    .stSuccess {
+        background-color: #064e3b;
+        color: #a7f3d0;
+    }
+    
+    /* Ocultar elementos de marca de Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -87,32 +99,27 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LÓGICA DE LIMPIEZA V3.0 (CIRUGÍA REGISTRAL) ---
+# --- 2. LÓGICA DE LIMPIEZA V4.0 (SEPARADOR MOLECULAR) ---
 def limpiar_texto_registral(texto_crudo):
-    """
-    V4.0: Solución específica para textos pegados (realidad.TIMBRE) y 
-    lecturas erróneas del OCR (QUINTANARDELA).
-    """
     if not texto_crudo:
         return ""
 
-    # 1. PRE-PROCESADO: SEPARAR TEXTO PEGADO
-    # El OCR a veces devuelve "realidad.TIMBRE". Esto separa el punto de la mayúscula siguiente.
+    # A) PRE-PROCESADO: Despegar palabras que el OCR une por error
+    # Ejemplo: "realidad.TIMBRE" -> "realidad. TIMBRE"
     texto_crudo = re.sub(r'([a-z])\.([A-Z])', r'\1. \2', texto_crudo)
-    # Separa palabras minúsculas de mayúsculas pegadas (ej: "fincaTIMBRE")
+    # Ejemplo: "fincaTIMBRE" -> "finca TIMBRE"
     texto_crudo = re.sub(r'([a-z])([A-Z]{3,})', r'\1 \2', texto_crudo)
 
-    # 2. LISTA NEGRA AMPLIADA (Incluyendo errores de lectura de Google)
+    # B) LISTA NEGRA AMPLIADA
     marcadores_basura = [
         "TIMBRE DEL ESTADO", "PAPEL EXCLUSIVO", "DOCUMENTOS NOTARIALES",
         "CLASE 8", "CLASE 6", "CLASE 4", "0,15 €", "0,03 €", "EUROS",
         "R.C.M.FN", "RCMFN", 
-        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", "1NIHIL", "2NIHIL", # Variaciones del lema
+        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", "1NIHIL", "2NIHIL",
         "NOTARIA DE", "NOTARÍA DE", "DEL ILUSTRE COLEGIO",
         "DISTRITO NOTARIAL", 
         "BOLAS OLCINA", "RESA BOLAS", "MARÍA TERESA BOLÁS", 
         "PAPEL EXCL", "DEL ESTADO", "DE DONA",
-        # Errores específicos de lectura que vimos en tu archivo 5.txt:
         "QUINTANAR DE LA ORDEN", "QUINTANARDEL", "QUINTANARDELA", "RDEN (TOLEDO)",
         "TIMBRE PRIUS", "DEN TOLEDO"
     ]
@@ -120,13 +127,13 @@ def limpiar_texto_registral(texto_crudo):
     lineas_limpias = []
     
     for linea in texto_crudo.split('\n'):
-        # Normalizamos espacios antes de analizar
+        # Normalizamos espacios
         linea = re.sub(r'\s+', ' ', linea).strip()
         linea_upper = linea.upper()
         
         es_basura_total = False
         
-        # A) Filtro: Líneas que son SOLO basura o códigos
+        # Filtro 1: Líneas que son puramente basura técnica
         if len(linea) < 40 and (
             re.search(r'\d{2}/\d{4}', linea) or 
             re.search(r'^[A-Z]{2}\d+', linea_upper) or
@@ -136,23 +143,22 @@ def limpiar_texto_registral(texto_crudo):
             es_basura_total = True
         
         if not es_basura_total:
-            # B) CIRUGÍA: Borrar basura incrustada en líneas largas
+            # Filtro 2: Borrado quirúrgico dentro de líneas de texto
             for marcador in marcadores_basura:
                 if marcador in linea_upper:
-                    # Usamos regex ignorando mayúsculas/minúsculas para borrar el marcador
                     linea = re.sub(re.escape(marcador), "", linea, flags=re.IGNORECASE)
             
-            # Limpieza extra de patrones sueltos que quedan tras borrar las palabras
-            linea = re.sub(r'\s\d{2}/\d{4}\s', " ", linea) # Fechas 05/2025 sueltas
-            linea = re.sub(r'[A-Z]{2}\d{6,}', "", linea)   # Códigos IU...
+            # Limpieza residual (fechas sueltas o códigos que quedaron tras borrar palabras)
+            linea = re.sub(r'\s\d{2}/\d{4}\s', " ", linea) 
+            linea = re.sub(r'[A-Z]{2}\d{6,}', "", linea)   
             
-            # Si tras limpiar la línea queda vacía o solo signos, no la guardamos
+            # Solo guardamos si queda texto útil
             if len(linea.strip()) > 3:
                 lineas_limpias.append(linea)
 
     texto = "\n".join(lineas_limpias)
 
-    # --- 3. PULIDO FINAL ---
+    # --- 3. PULIDO FINAL DE TEXTO ---
     texto = re.sub(r'-\s+', '', texto) 
     texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) 
     texto = re.sub(r'\s+', ' ', texto)
@@ -166,9 +172,11 @@ def limpiar_texto_registral(texto_crudo):
     # Resaltado de Cabeceras
     titulos = ["ESCRITURA", "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN", "ESTIPULACIONES"]
     for t in titulos:
-        texto = re.sub(rf'({t})', r'\n\
+        texto = re.sub(rf'({t})', r'\n\n\1', texto)
 
-# --- 3. CONEXIÓN GOOGLE VISION ---
+    return texto.strip()
+
+# --- 4. CONEXIÓN GOOGLE VISION ---
 def procesar_con_api_key(content_bytes, api_key):
     try:
         b64_content = base64.b64encode(content_bytes).decode('utf-8')
@@ -181,7 +189,7 @@ def procesar_con_api_key(content_bytes, api_key):
                     "mimeType": "application/pdf"
                 },
                 "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
-                "pages": [1, 2, 3, 4, 5] # Lee las primeras 5 páginas
+                "pages": [1, 2, 3, 4, 5] 
             }]
         }
 
@@ -210,30 +218,29 @@ def procesar_con_api_key(content_bytes, api_key):
     except Exception as e:
         return f"Error de conexión: {e}"
 
-# --- 4. INTERFAZ DE USUARIO (FRONTEND) ---
+# --- 5. INTERFAZ DE USUARIO (FRONTEND) ---
 
-# Encabezado
-st.title("F90 | LEGAL TECH")
+# Encabezado (Sin F90)
+st.title("OCR REGISTRAL")
 st.markdown("### Limpiador Inteligente de Escrituras")
 
 # Verificación de Seguridad
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("⛔ Error de Configuración: Falta la API Key en los Secrets.")
+    st.error("⛔ Error: Falta la API Key en los Secrets.")
     st.stop()
 else:
     api_key = st.secrets["GOOGLE_API_KEY"]
 
 # Área de carga
-uploaded_file = st.file_uploader("Sube tu escritura (PDF)", type=['pdf'], help="Máximo 5 páginas en esta versión demo.")
+uploaded_file = st.file_uploader("Sube tu escritura (PDF)", type=['pdf'])
 
-# Separador visual
-st.markdown("---")
+# Separador visual oscuro
+st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file is not None:
     # Botón principal
-    if st.button("✨ LIMPIAR DOCUMENTO AHORA"):
+    if st.button("PROCESAR DOCUMENTO"):
         
-        # Barra de progreso simulada para dar feedback
         progress_text = "Analizando documento con IA..."
         my_bar = st.progress(0, text=progress_text)
 
@@ -246,24 +253,23 @@ if uploaded_file is not None:
             my_bar.progress(60, text="Extrayendo texto crudo...")
             texto_sucio = procesar_con_api_key(bytes_data, api_key)
             
-            # 3. Limpieza V3
-            my_bar.progress(85, text="Eliminando sellos y timbres notariales...")
+            # 3. Limpieza V4
+            my_bar.progress(85, text="Aplicando limpieza quirúrgica...")
             texto_limpio = limpiar_texto_registral(texto_sucio)
             
             my_bar.progress(100, text="¡Finalizado!")
-            my_bar.empty() # Quitamos la barra
+            my_bar.empty() 
 
             # --- RESULTADO ---
-            st.success("✅ Proceso completado con éxito")
+            st.success("✅ Proceso completado")
             
-            # Mostramos el texto en un área limpia
-            st.text_area("Vista Previa (Editable):", value=texto_limpio, height=450)
+            st.text_area("Texto Resultante:", value=texto_limpio, height=500)
             
             # Columnas para centrar el botón de descarga
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 st.download_button(
-                    label="⬇️ DESCARGAR DOCUMENTO (.TXT)",
+                    label="⬇️ DESCARGAR (.TXT)",
                     data=texto_limpio,
                     file_name="escritura_limpia.txt",
                     mime="text/plain"
@@ -272,12 +278,11 @@ if uploaded_file is not None:
         except Exception as e:
             st.error(f"Ocurrió un error: {e}")
 
-# Pie de página discreto
+# Pie de página simple y limpio
 st.markdown(
     """
-    <div style='text-align: center; color: #a0aec0; font-size: 0.8em; margin-top: 3rem;'>
-        Seguridad Garantizada: Los archivos se procesan en memoria volátil y se eliminan tras su uso.
-        <br>Powered by Google Cloud Vision AI & F90
+    <div style='text-align: center; color: #555; font-size: 0.8em; margin-top: 3rem;'>
+        Privacidad: No se almacenan copias de los documentos.
     </div>
     """, 
     unsafe_allow_html=True
