@@ -176,4 +176,15 @@ if uploaded_file:
                             file_name="escritura_limpia.txt",
                             mime="text/plain"
                         )
-                        st.text_area("
+                        st.text_area("Vista Previa", value=texto_final, height=600)
+                    else:
+                        st.warning("El documento parece vacío o no legible.")
+                else:
+                    st.error("Error de conexión con la IA.")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+
+# Botón discreto para cerrar sesión (abajo)
+if st.button("Cerrar Sesión", type="secondary"):
+    st.session_state["password_correct"] = False
+    st.rerun()
