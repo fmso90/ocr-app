@@ -89,51 +89,70 @@ st.markdown("""
 
 # --- 2. LÓGICA DE LIMPIEZA V3.0 (CIRUGÍA REGISTRAL) ---
 def limpiar_texto_registral(texto_crudo):
+    """
+    V4.0: Solución específica para textos pegados (realidad.TIMBRE) y 
+    lecturas erróneas del OCR (QUINTANARDELA).
+    """
     if not texto_crudo:
         return ""
 
-    # Lista Negra Específica (Basada en tus pruebas reales)
+    # 1. PRE-PROCESADO: SEPARAR TEXTO PEGADO
+    # El OCR a veces devuelve "realidad.TIMBRE". Esto separa el punto de la mayúscula siguiente.
+    texto_crudo = re.sub(r'([a-z])\.([A-Z])', r'\1. \2', texto_crudo)
+    # Separa palabras minúsculas de mayúsculas pegadas (ej: "fincaTIMBRE")
+    texto_crudo = re.sub(r'([a-z])([A-Z]{3,})', r'\1 \2', texto_crudo)
+
+    # 2. LISTA NEGRA AMPLIADA (Incluyendo errores de lectura de Google)
     marcadores_basura = [
         "TIMBRE DEL ESTADO", "PAPEL EXCLUSIVO", "DOCUMENTOS NOTARIALES",
         "CLASE 8", "CLASE 6", "CLASE 4", "0,15 €", "0,03 €", "EUROS",
         "R.C.M.FN", "RCMFN", 
-        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", # Sello Latín
+        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", "1NIHIL", "2NIHIL", # Variaciones del lema
         "NOTARIA DE", "NOTARÍA DE", "DEL ILUSTRE COLEGIO",
         "DISTRITO NOTARIAL", 
-        "BOLAS OLCINA", "RESA BOLAS", "MARÍA TERESA BOLÁS", # Notaria específica (prueba)
+        "BOLAS OLCINA", "RESA BOLAS", "MARÍA TERESA BOLÁS", 
         "PAPEL EXCL", "DEL ESTADO", "DE DONA",
-        "QUINTANAR DE LA ORDEN"
+        # Errores específicos de lectura que vimos en tu archivo 5.txt:
+        "QUINTANAR DE LA ORDEN", "QUINTANARDEL", "QUINTANARDELA", "RDEN (TOLEDO)",
+        "TIMBRE PRIUS", "DEN TOLEDO"
     ]
 
     lineas_limpias = []
     
     for linea in texto_crudo.split('\n'):
-        linea_upper = linea.upper().strip()
-        es_basura = False
+        # Normalizamos espacios antes de analizar
+        linea = re.sub(r'\s+', ' ', linea).strip()
+        linea_upper = linea.upper()
         
-        # Filtro A: Códigos de Papel y Fechas sueltas
-        if len(linea) < 25 and (re.search(r'\d{2}/\d{4}', linea) or re.search(r'[A-Z]{2}\d+', linea_upper)):
-            es_basura = True
+        es_basura_total = False
         
-        # Filtro B: Fragmentos del sello
-        for marcador in marcadores_basura:
-            if marcador in linea_upper:
-                # Si la línea es corta, asumimos que es basura completa
-                if len(linea) < 60: 
-                    es_basura = True
-                else:
-                    # CIRUGÍA: Si la línea es larga (texto legal), borramos solo la basura
-                    linea = re.sub(marcador, "", linea, flags=re.IGNORECASE)
-                    # Limpieza extra de fechas/códigos incrustados
-                    linea = re.sub(r'\s\d{2}/\d{4}\s', " ", linea)
-                    linea = re.sub(r'[A-Z]{2}\d{6,}', "", linea)
-
-        if not es_basura:
-            lineas_limpias.append(linea)
+        # A) Filtro: Líneas que son SOLO basura o códigos
+        if len(linea) < 40 and (
+            re.search(r'\d{2}/\d{4}', linea) or 
+            re.search(r'^[A-Z]{2}\d+', linea_upper) or
+            "TIMBRE" in linea_upper or
+            "PRIUS" in linea_upper
+        ):
+            es_basura_total = True
+        
+        if not es_basura_total:
+            # B) CIRUGÍA: Borrar basura incrustada en líneas largas
+            for marcador in marcadores_basura:
+                if marcador in linea_upper:
+                    # Usamos regex ignorando mayúsculas/minúsculas para borrar el marcador
+                    linea = re.sub(re.escape(marcador), "", linea, flags=re.IGNORECASE)
+            
+            # Limpieza extra de patrones sueltos que quedan tras borrar las palabras
+            linea = re.sub(r'\s\d{2}/\d{4}\s', " ", linea) # Fechas 05/2025 sueltas
+            linea = re.sub(r'[A-Z]{2}\d{6,}', "", linea)   # Códigos IU...
+            
+            # Si tras limpiar la línea queda vacía o solo signos, no la guardamos
+            if len(linea.strip()) > 3:
+                lineas_limpias.append(linea)
 
     texto = "\n".join(lineas_limpias)
 
-    # --- Pulido Final ---
+    # --- 3. PULIDO FINAL ---
     texto = re.sub(r'-\s+', '', texto) 
     texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) 
     texto = re.sub(r'\s+', ' ', texto)
@@ -141,15 +160,13 @@ def limpiar_texto_registral(texto_crudo):
     texto = re.sub(r'(\()\s+', r'\1', texto)
     texto = re.sub(r'\s+\/\s+', '/', texto)
     
-    # Reconstrucción de párrafos (Punto + Mayúscula = Salto)
+    # Reconstrucción de párrafos
     texto = re.sub(r'(\.)\s+([A-ZÁÉÍÓÚÑ])', r'\1\n\n\2', texto)
 
     # Resaltado de Cabeceras
     titulos = ["ESCRITURA", "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN", "ESTIPULACIONES"]
     for t in titulos:
-        texto = re.sub(rf'({t})', r'\n\n\1', texto)
-
-    return texto.strip()
+        texto = re.sub(rf'({t})', r'\n\
 
 # --- 3. CONEXIÓN GOOGLE VISION ---
 def procesar_con_api_key(content_bytes, api_key):
