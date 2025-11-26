@@ -13,45 +13,63 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- ESTILOS CSS "LOOK F90 FOTO" (Minimalista Dark) ---
+# --- ESTILOS CSS "LOOK F90 FOTO" (Minimalista Dark & Full Width) ---
 st.markdown("""
 <style>
     /* Importamos fuente elegante (Montserrat) */
-    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap');
 
-    /* FONDO GENERAL Y TEXTOS */
+    /* RESET GENERAL DE STREAMLIT PARA QUE PAREZCA UNA WEB */
     .stApp {
-        background-color: #0e1117; /* Gris muy oscuro (Estilo Capture One) */
-        color: #e0e0e0;
+        background-color: #121212; /* Negro suave estilo Squarespace */
+        color: #f0f0f0;
         font-family: 'Montserrat', sans-serif;
     }
     
+    /* QUITAR EL ESPACIO VACÍO DE ARRIBA (PADDING) */
+    .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 1200px; /* Ancho máximo para que no se desparrame en pantallas grandes */
+    }
+    
+    /* TIPOGRAFÍA */
     h1, h2, h3, h4, h5 {
         font-family: 'Montserrat', sans-serif;
-        font-weight: 600;
+        font-weight: 500; /* Más fino, más elegante */
         color: #ffffff !important;
-        text-align: center;
-        letter-spacing: -0.5px;
+        text-transform: uppercase;
+        letter-spacing: 2px; /* Espaciado entre letras estilo portfolio */
+    }
+    
+    p, li, div {
+        font-weight: 300;
+        letter-spacing: 0.5px;
+        line-height: 1.6;
     }
 
-    /* BOTONES PRINCIPALES (Estilo minimalista blanco/negro) */
+    /* BOTONES PRINCIPALES (Estilo minimalista F90) */
     .stButton > button {
+        background-color: transparent;
+        color: #ffffff;
+        border: 1px solid #ffffff;
+        border-radius: 0px; /* Botones cuadrados estilo Squarespace */
+        padding: 0.8rem 2rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        transition: all 0.3s ease;
+        width: 100%;
+        font-size: 0.9rem;
+    }
+    .stButton > button:hover {
         background-color: #ffffff;
         color: #000000;
         border: 1px solid #ffffff;
-        border-radius: 4px; /* Bordes menos redondeados, más pro */
-        padding: 0.6rem 1rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        transition: all 0.3s ease;
-        width: 100%;
     }
-    .stButton > button:hover {
-        background-color: #000000;
-        color: #ffffff;
-        border: 1px solid #ffffff;
-        box-shadow: 0 0 10px rgba(255,255,255,0.2);
+    .stButton > button:active {
+        color: #000000;
+        background-color: #cccccc;
     }
     
     /* LINK BUTTON (Para la suscripción) */
@@ -61,37 +79,49 @@ st.markdown("""
         border: 1px solid #ffffff;
         display: block;
         text-align: center;
-        padding: 12px;
-        border-radius: 4px;
+        padding: 15px;
+        border-radius: 0px; /* Cuadrado */
         text-decoration: none;
-        font-weight: bold;
+        font-weight: 600;
         text-transform: uppercase;
+        letter-spacing: 2px;
         margin-top: 10px;
     }
-
-    /* CAJAS DE INFORMACIÓN (Success/Info/Error) */
-    .stAlert {
-        background-color: #1c1f26;
-        color: #e0e0e0;
-        border: 1px solid #333;
+    a[href*="lemonsqueezy"]:hover {
+        opacity: 0.9;
     }
-    
-    /* TARJETA DE PRECIO */
+
+    /* TARJETA DE PRECIO MINIMALISTA */
     .price-card {
-        background-color: #161920;
+        background-color: #1a1a1a;
         border: 1px solid #333;
-        border-radius: 8px;
-        padding: 40px;
+        padding: 50px 30px;
         text-align: center;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        transition: transform 0.3s ease;
+    }
+    .price-card:hover {
+        border-color: #555;
     }
     .price-amount {
-        font-size: 3rem;
-        font-weight: 300;
+        font-size: 3.5rem;
+        font-weight: 200;
         color: #ffffff;
+        margin: 20px 0;
     }
     
-    /* OCULTAR ELEMENTOS DE STREAMLIT */
+    /* INPUTS DE TEXTO (Formularios limpios) */
+    .stTextInput > div > div > input {
+        background-color: #1a1a1a;
+        color: white;
+        border: 1px solid #333;
+        border-radius: 0px;
+    }
+    .stTextInput > div > div > input:focus {
+        border-color: #fff;
+        box-shadow: none;
+    }
+
+    /* OCULTAR ELEMENTOS NATIVOS DE STREAMLIT */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -107,7 +137,6 @@ GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY") or st.secrets.get("GOOGLE_API_
 
 def validate_lemon_license(license_key: str) -> bool:
     if not LS_API_KEY:
-        # Modo silencioso para no romper la estética si falta la key
         return False
         
     url = "https://api.lemonsqueezy.com/v1/licenses/validate"
@@ -161,86 +190,89 @@ def navigate_to(page):
     st.rerun()
 
 # ==========================================
-# 🏠 PÁGINA 1: LANDING PAGE (Minimalista)
+# 🏠 PÁGINA 1: LANDING PAGE (Estilo F90)
 # ==========================================
 def show_landing():
+    # Logo o Título super minimalista
+    st.markdown("<h4 style='text-align: left; color: #666; font-size: 0.8rem; letter-spacing: 3px;'>F90 | SERVICIOS DIGITALES</h4>", unsafe_allow_html=True)
+    st.write("##") # Espacio
+
+    # CABECERA GRANDE
+    st.markdown("<h1 style='font-size: 4rem; font-weight: 200; text-align: left; line-height: 1.1;'>DIGITALIZACIÓN<br><span style='font-weight: 600;'>REGISTRAL</span></h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: left; color: #aaa; font-size: 1.1rem; max-width: 600px; margin-top: 20px;'>Automatización inteligente para profesionales del registro. Transcripción literal y limpieza de datos con un solo clic.</p>", unsafe_allow_html=True)
+    
     st.write("##")
-    # Título super limpio
-    st.markdown("<h1 style='font-size: 3rem; font-weight: 300; letter-spacing: 2px;'>DIGITALIZADOR <span style='font-weight: 600;'>REGISTRAL</span></h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #888; font-size: 1.2rem; letter-spacing: 1px;'>PRECISIÓN JURÍDICA. VELOCIDAD DIGITAL.</p>", unsafe_allow_html=True)
-    st.write("---")
-
-    col1, col2 = st.columns([1, 1], gap="large")
-    with col1:
-        st.write("##")
-        st.markdown("### LA IMAGEN COMPLETA")
-        st.markdown("""
-        <div style="color: #ccc; font-weight: 300; line-height: 1.8;">
-        Al igual que en fotografía, los detalles importan. He diseñado esta herramienta para eliminar el ruido (timbres, sellos, datos protegidos) y dejar solo lo esencial: <strong>la inscripción pura.</strong>
-        <br><br>
-        <ul>
-            <li>Originalidad inalterada (Transcripción literal)</li>
-            <li>Encuadre perfecto (Corte automático RGPD)</li>
-            <li>Flujo de trabajo acelerado</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        st.write("##")
-        st.info("💡 **WORKFLOW OPTIMIZADO**")
-        st.markdown("""
-        1. **IMPORTAR:** Arrastra tu PDF.
-        2. **PROCESAR:** La IA revela el texto jurídico.
-        3. **EXPORTAR:** Copia el resultado limpio.
-        """)
-        
-        st.write("##")
-        if st.button("VER PLANES & ACCEDER", type="primary"):
+    
+    col_cta, col_vacia = st.columns([1, 2])
+    with col_cta:
+        if st.button("EMPEZAR AHORA", type="primary"):
             navigate_to("subscription")
 
-    st.write("##")
     st.write("---")
-    st.markdown("<p style='text-align: center; color: #555; font-size: 0.8rem;'>DESIGNED BY F90 | ALMADÉN, SPAIN</p>", unsafe_allow_html=True)
+
+    # SECCIÓN DE CARACTERÍSTICAS (Grid limpio)
+    col1, col2, col3 = st.columns(3, gap="large")
+
+    with col1:
+        st.markdown("### 01. PRECISIÓN")
+        st.markdown("<div style='color: #888; font-size: 0.9rem;'>La IA analiza el documento legal entendiendo el contexto, no solo copiando caracteres.</div>", unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("### 02. LIMPIEZA")
+        st.markdown("<div style='color: #888; font-size: 0.9rem;'>Elimina timbres, saltos de línea erróneos y ruido visual. Entrega un texto plano listo para pegar.</div>", unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("### 03. PRIVACIDAD")
+        st.markdown("<div style='color: #888; font-size: 0.9rem;'>Detecta automáticamente la cláusula RGPD y corta la transcripción antes de procesar datos sensibles.</div>", unsafe_allow_html=True)
+
+    st.write("##")
+    st.write("##")
+    
+    # FOOTER SUTIL
+    st.markdown("<div style='text-align: center; color: #444; font-size: 0.7rem; letter-spacing: 2px; margin-top: 50px;'>F90FOTO © 2024 | ALMADÉN</div>", unsafe_allow_html=True)
+
 
 # ==========================================
-# 💳 PÁGINA 2: SUSCRIPCIÓN (Estilo Etiqueta)
+# 💳 PÁGINA 2: SUSCRIPCIÓN (Estilo Gallery)
 # ==========================================
 def show_subscription():
-    st.write("##")
-    st.title("PLAN PROFESIONAL")
-    if st.button("← VOLVER"): navigate_to("landing")
+    st.markdown("<h4 style='text-align: left; color: #666; font-size: 0.8rem; letter-spacing: 3px;'>SUSCRIPCIÓN</h4>", unsafe_allow_html=True)
+    
+    col_back, _ = st.columns([1, 6])
+    with col_back:
+        if st.button("← ATRÁS"): navigate_to("landing")
     
     st.write("##")
     
+    # Centramos la tarjeta de precio
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
-        # Tarjeta de precio personalizada con HTML
+        # Tarjeta de precio estilo Squarespace
         st.markdown("""
         <div class="price-card">
-            <h3 style="color: #888; text-transform: uppercase; letter-spacing: 2px;">Suscripción Mensual</h3>
+            <h3 style="color: #fff; font-size: 1rem; letter-spacing: 3px;">PROFESSIONAL LICENSE</h3>
             <div class="price-amount">19,90€</div>
-            <p style="color: #666;">Sin permanencia. Cancelación inmediata.</p>
-            <hr style="border-color: #333;">
-            <ul style="text-align: left; color: #ccc; list-style: none; padding: 0;">
-                <li style="margin-bottom: 10px;">✓ Transcripciones Ilimitadas</li>
-                <li style="margin-bottom: 10px;">✓ Corte Inteligente RGPD</li>
-                <li style="margin-bottom: 10px;">✓ Soporte Directo F90</li>
-            </ul>
+            <p style="color: #666; font-size: 0.8rem;">FACTURACIÓN MENSUAL</p>
+            <hr style="border-color: #333; margin: 30px 0;">
+            <div style="text-align: left; color: #ccc; font-size: 0.9rem; line-height: 2;">
+                Acceso completo al motor IA<br>
+                Soporte técnico prioritario<br>
+                Actualizaciones incluidas
+            </div>
         </div>
         """, unsafe_allow_html=True)
         
-        st.write("##")
         # Enlace de Lemon Squeezy (REEMPLAZAR LINK)
-        st.markdown('<a href="https://tu-tienda.lemonsqueezy.com/checkout" target="_blank">SUSCRIBIRSE AHORA</a>', unsafe_allow_html=True)
+        st.markdown('<a href="https://tu-tienda.lemonsqueezy.com/checkout" target="_blank">COMPRAR LICENCIA</a>', unsafe_allow_html=True)
 
-    st.write("---")
-    st.markdown("### LOGIN DE USUARIO")
+    st.write("##")
+    st.markdown("---")
     
-    c_log1, c_log2, c_log3 = st.columns([1, 2, 1])
+    c_log1, c_log2, c_log3 = st.columns([1, 1, 1])
     with c_log2:
-        password = st.text_input("CLAVE DE LICENCIA", type="password")
-        if st.button("INICIAR SESIÓN"):
+        st.markdown("<h3 style='font-size: 1rem;'>ÁREA DE CLIENTE</h3>", unsafe_allow_html=True)
+        password = st.text_input("INTRODUCE TU CLAVE", type="password", label_visibility="collapsed", placeholder="Licencia...")
+        if st.button("ACCEDER"):
             if password == "F90-ADMIN": 
                 st.session_state.authenticated = True
                 navigate_to("app")
@@ -248,47 +280,64 @@ def show_subscription():
                 st.session_state.authenticated = True
                 navigate_to("app")
             else:
-                st.error("LICENCIA NO VÁLIDA")
+                st.error("LICENCIA INVÁLIDA")
 
 # ==========================================
 # ⚙️ PÁGINA 3: WORKSPACE (Aplicación)
 # ==========================================
 def show_app():
-    # Barra superior minimalista
-    col_brand, col_out = st.columns([6, 1])
-    with col_brand:
-        st.markdown("<h3 style='text-align: left; margin: 0;'>F90 | WORKSPACE</h3>", unsafe_allow_html=True)
-    with col_out:
-        if st.button("LOGOUT"):
+    # Header minimalista
+    c_head1, c_head2 = st.columns([6, 1])
+    with c_head1:
+        st.markdown("<h4 style='margin:0; padding-top: 10px; letter-spacing: 2px;'>F90 WORKSPACE</h4>", unsafe_allow_html=True)
+    with c_head2:
+        if st.button("SALIR"):
             st.session_state.authenticated = False
             navigate_to("landing")
-    
-    st.write("---")
+            
+    st.markdown("---")
 
     if not GOOGLE_API_KEY:
-        st.error("⚠️ SISTEMA NO CONFIGURADO (Falta API Key)")
-        st.stop()
-
-    # Área de subida limpia
-    uploaded_file = st.file_uploader("ARRASTRA TU ESCRITURA (PDF)", type=['pdf'])
+        st.warning("⚠️ MODO DEMO: Falta API Key de Google")
     
-    if uploaded_file:
-        st.write("##")
-        col_act, _ = st.columns([1, 3])
-        with col_act:
-            if st.button("REVELAR TEXTO (PROCESAR)"):
-                with st.spinner("Procesando documento..."):
-                    try:
-                        bytes_data = uploaded_file.read()
-                        resultado = transcribir_con_corte(bytes_data)
-                        datos = json.loads(limpiar_json(resultado))
-                        texto_final = datos.get("texto_cortado", "")
-                        
-                        st.success("PROCESO COMPLETADO")
-                        st.text_area("TEXTO FINAL", value=texto_final, height=600)
-                        st.download_button("DESCARGAR .TXT", texto_final, "escritura_f90.txt")
-                    except Exception as e:
-                        st.error(f"Error en el procesado: {e}")
+    # Layout de trabajo: Izquierda (Subida) | Derecha (Resultado)
+    col_izq, col_der = st.columns([1, 1], gap="large")
+    
+    with col_izq:
+        st.markdown("### 1. DOCUMENTO")
+        uploaded_file = st.file_uploader("Selecciona PDF", type=['pdf'], label_visibility="collapsed")
+        
+        if uploaded_file:
+            st.success(f"Archivo cargado: {uploaded_file.name}")
+            st.write("##")
+            if st.button("INICIAR PROCESADO", type="primary"):
+                st.session_state.procesando = True
+                # Simulamos o procesamos
+                if GOOGLE_API_KEY:
+                    with st.spinner("Analizando estructura legal..."):
+                        try:
+                            bytes_data = uploaded_file.read()
+                            resultado = transcribir_con_corte(bytes_data)
+                            datos = json.loads(limpiar_json(resultado))
+                            st.session_state.texto_resultado = datos.get("texto_cortado", "")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                else:
+                    # Simulación si no hay key
+                    time.sleep(2)
+                    st.session_state.texto_resultado = "EJEMPLO DE TEXTO TRANSCRITO...\n\n(Aquí aparecería el texto real si hubiera API Key)"
+
+    with col_der:
+        st.markdown("### 2. RESULTADO")
+        if "texto_resultado" in st.session_state:
+            st.text_area("Texto final", value=st.session_state.texto_resultado, height=500, label_visibility="collapsed")
+            st.download_button("DESCARGAR .TXT", st.session_state.texto_resultado, "transcripcion.txt")
+        else:
+            st.markdown("""
+            <div style='border: 1px dashed #444; height: 500px; display: flex; align-items: center; justify-content: center; color: #666;'>
+                Esperando documento...
+            </div>
+            """, unsafe_allow_html=True)
 
 # ==========================================
 # 🚦 ROUTER
