@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import json
 
-# --- 1. CONFIGURACIÓN ---
+# --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Digitalizador Registral Pro", page_icon="⚖️", layout="wide")
 
 st.markdown("""
@@ -15,58 +15,57 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CONEXIÓN CON EL MODELO POTENTE ---
-def configurar_gemini(api_key):
+# --- CONEXIÓN IA ---
+def configurar_modelo(api_key):
     genai.configure(api_key=api_key)
-    # Usamos el modelo PRO (el más potente para seguir instrucciones complejas)
+    # Usamos el modelo PRO (el más potente de Google)
+    # Si falla, puedes probar a cambiar esta línea por 'gemini-1.5-pro-latest'
     return genai.GenerativeModel('models/gemini-1.5-pro')
 
 def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
-# --- 3. CEREBRO DE TRANSCRIPCIÓN LITERAL ---
-def transcribir_literalmente(modelo, archivo_bytes):
+# --- CEREBRO TRANSCRIPTOR ---
+def transcribir_literal(modelo, archivo_bytes):
     prompt = """
-    Actúa como un Oficial de Registro experto.
-    Tu tarea es LEER el PDF y TRANSCRIBIRLO LITERALMENTE palabra por palabra.
+    Actúa como Oficial de Registro. Transcribe el PDF LITERALMENTE.
+    
+    INSTRUCCIONES DE ORO:
+    1. COPIA el texto palabra por palabra. NO resumas. NO uses viñetas.
+    2. LIMPIEZA: Elimina SOLO los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") y notas al margen.
+    3. MANTÉN INTEGROS: Nombres, DNI, Fincas y Referencias Catastrales.
 
-    INSTRUCCIONES ESTRICTAS:
-    1. COPIA los párrafos tal cual aparecen. NO RESUMAS. NO uses listas ni viñetas.
-    2. LIMPIEZA: Omite ÚNICAMENTE el texto de los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS", "NOTARIA DE...") que mancha el texto.
-    3. MANTÉN TODO LO DEMÁS: Nombres, DNI, Fechas, Fincas, Referencias Catastrales y Linderos deben ser exactos al original.
-
-    Devuelve un JSON con 3 campos de TEXTO PURO (Strings):
+    Devuelve JSON:
     {
-        "intervinientes": "Texto literal del bloque de comparecencia e intervención (desde COMPARECEN hasta INTERVIENEN/EXPONEN).",
-        "fincas": "Texto literal de la descripción de las fincas (Situación, linderos, cabida, referencia). Si hay varias, sepáralas con doble salto de línea.",
-        "texto_completo": "El texto íntegro del documento unido y limpio de sellos."
+        "intervinientes": "Texto literal del bloque de comparecencia...",
+        "fincas": "Texto literal de la descripción de las fincas...",
+        "texto_completo": "Texto íntegro del documento limpio..."
     }
     """
     
-    # Configuración para forzar JSON y creatividad baja (literalidad)
-    generation_config = genai.types.GenerationConfig(
+    # Temperatura 0.1 para máxima literalidad (robot mecanógrafo)
+    config = genai.types.GenerationConfig(
         temperature=0.1,
         response_mime_type="application/json"
     )
 
     response = modelo.generate_content(
         [{'mime_type': 'application/pdf', 'data': archivo_bytes}, prompt],
-        generation_config=generation_config
+        generation_config=config
     )
     return response.text
 
-# --- 4. INTERFAZ ---
+# --- INTERFAZ ---
 st.title("DIGITALIZADOR REGISTRAL (MODELO PRO)")
-st.markdown("### Transcripción Literal con Gemini 1.5 Pro")
 
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("⛔ Falta la API Key en los Secrets.")
+    st.error("⛔ Falta API Key en Secrets.")
     st.stop()
 
 try:
-    model = configurar_gemini(st.secrets["GOOGLE_API_KEY"])
+    model = configurar_modelo(st.secrets["GOOGLE_API_KEY"])
 except Exception as e:
-    st.error(f"Error de configuración: {e}")
+    st.error(f"Error configuración: {e}")
     st.stop()
 
 uploaded_file = st.file_uploader("Sube escritura (PDF)", type=['pdf'])
@@ -74,30 +73,24 @@ st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file:
     if st.button("TRANSCRIBIR DOCUMENTO"):
-        with st.spinner('🧠 Gemini Pro está leyendo y limpiando el documento...'):
+        with st.spinner('🧠 Gemini Pro está leyendo el documento...'):
             try:
                 bytes_data = uploaded_file.read()
-                
-                # Llamada a la IA
-                resultado_json = transcribir_literalmente(model, bytes_data)
-                
-                # Procesar
-                datos = json.loads(limpiar_json(resultado_json))
+                resultado = transcribir_literal(model, bytes_data)
+                datos = json.loads(limpiar_json(resultado))
                 
                 st.success("✅ Transcripción Completada")
                 
                 st.subheader("👥 Intervinientes (Literal)")
-                st.text_area("intervinientes", value=datos.get("intervinientes", ""), height=200, label_visibility="collapsed")
+                st.text_area("intervinientes", value=datos.get("intervinientes", ""), height=200)
                 
                 st.subheader("🏡 Fincas (Literal)")
-                st.text_area("fincas", value=datos.get("fincas", ""), height=300, label_visibility="collapsed")
+                st.text_area("fincas", value=datos.get("fincas", ""), height=300)
                 
-                with st.expander("📄 Ver Documento Completo Limpio"):
-                    st.text_area("completo", value=datos.get("texto_completo", ""), height=600, label_visibility="collapsed")
+                with st.expander("📄 Texto Completo"):
+                    st.text_area("completo", value=datos.get("texto_completo", ""), height=600)
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 if "404" in str(e):
-                    st.warning("⚠️ Error de modelo no encontrado. Asegúrate de haber hecho 'Reboot App' tras cambiar el requirements.txt.")
-                if "429" in str(e):
-                    st.warning("⚠️ Has superado la cuota gratuita de Gemini Pro por minuto. Espera un poco.")
+                    st.warning("⚠️ IMPORTANTE: Tu API Key no tiene acceso al modelo Pro. 1) Crea una clave nueva en aistudio.google.com. 2) Dale a 'Reboot App'.")
