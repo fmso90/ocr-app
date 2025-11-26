@@ -3,15 +3,15 @@ import requests
 import base64
 import re
 
-# --- 1. CONFIGURACIÓN DE PÁGINA Y MODO OSCURO ---
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="OCR Registral Seguro",
+    page_title="OCR Registral Pro",
     page_icon="⚖️",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# CSS Dark Mode Premium
+# CSS Dark Mode
 st.markdown("""
 <style>
     .stApp { background-color: #000000; color: #e0e0e0; }
@@ -39,93 +39,83 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LÓGICA DE LIMPIEZA V5.0 (MODO CONSERVADOR / SEGURIDAD JURÍDICA) ---
+# --- 2. LÓGICA DE LIMPIEZA V6.0 (FIX DNI + SELLOS) ---
 def limpiar_texto_registral(texto_crudo):
     if not texto_crudo:
         return ""
 
-    # A) PRE-PROCESADO: Separar texto pegado por el sello
-    # Caso 1: Punto seguido de Mayúscula (realidad.TIMBRE -> realidad. TIMBRE)
+    # A) PRE-PROCESADO: Normalizar Abreviaturas (CRUCIAL PARA EL DNI)
+    # 1. Unir siglas separadas por espacios: D. N. I. -> D.N.I.
+    texto_crudo = re.sub(r'([A-Z])\.\s+([A-Z])\.', r'\1.\2.', texto_crudo)
+    # 2. Casos específicos comunes para forzar la unión
+    texto_crudo = re.sub(r'D\.\s*N\.\s*I\.', 'D.N.I.', texto_crudo, flags=re.IGNORECASE)
+    texto_crudo = re.sub(r'N\.\s*I\.\s*F\.', 'N.I.F.', texto_crudo, flags=re.IGNORECASE)
+    
+    # B) PRE-PROCESADO: Separar texto pegado por el sello
+    # realidad.TIMBRE -> realidad. TIMBRE
     texto_crudo = re.sub(r'(\.)([A-Z])', r'\1 \2', texto_crudo)
-    # Caso 2: Minúscula seguida de mucha Mayúscula (fincaTIMBRE -> finca TIMBRE)
+    # fincaTIMBRE -> finca TIMBRE
     texto_crudo = re.sub(r'([a-z])([A-Z]{3,})', r'\1 \2', texto_crudo)
 
-    # B) DEFINICIÓN DE LISTAS
-    
-    # 1. LISTA DE INMUNIDAD (Palabras Sagradas)
-    # Si una línea contiene esto, NO SE BORRA NADA (para proteger nombres y lugares)
+    # C) FILTRO DE SEGURIDAD Y BASURA
     frases_sagradas = [
         "ANTE MÍ", "ANTE MI", 
         "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN",
-        "EN LA VILLA DE", "EN LA CIUDAD DE", "EN " # Protege "En Quintanar..."
+        "EN LA VILLA DE", "EN LA CIUDAD DE", "EN " 
     ]
 
-    # 2. LISTA NEGRA (Solo basura 100% confirmada)
-    # HE QUITADO: Nombres de pueblos y apellidos. Solo dejamos lo técnico.
     marcadores_basura = [
         "TIMBRE DEL ESTADO", "PAPEL EXCLUSIVO", "DOCUMENTOS NOTARIALES",
         "CLASE 8", "CLASE 6", "CLASE 4", "0,15 €", "0,03 €", "EUROS",
         "R.C.M.FN", "RCMFN", 
         "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", "1NIHIL", 
-        "IU1953", # Parte fija del código de papel
-        # No ponemos "NOTARIA DE" porque podría borrar el encabezado válido
+        "IU1953"
     ]
 
     lineas_limpias = []
     
     for linea in texto_crudo.split('\n'):
-        # Normalización
         linea_strip = linea.strip()
         linea_upper = linea.upper()
         
-        # --- FILTRO DE SEGURIDAD JURÍDICA ---
+        # 1. Inmunidad: Si es una línea sagrada, la protegemos casi entera
         es_linea_sagrada = False
-        
-        # 1. Chequeo de Inmunidad
-        # Si la línea empieza por "En " (Ej: En Quintanar...) o tiene "Ante mí", LA PROTEGEMOS.
         if linea_upper.startswith("EN ") or "ANTE MÍ" in linea_upper or "ANTE MI" in linea_upper:
             es_linea_sagrada = True
         
-        # 2. Si es sagrada, la guardamos tal cual (sin borrar nada arriesgado)
         if es_linea_sagrada:
-            # Solo hacemos una limpieza mínima de códigos de papel si aparecen al final
+            # Solo limpiamos códigos de papel del final si molestan mucho
             linea = re.sub(r'IU\d{6,}', '', linea) 
             lineas_limpias.append(linea)
-            continue # Saltamos al siguiente ciclo
+            continue 
 
-        # --- LIMPIEZA DE LÍNEAS NO SAGRADAS ---
-        
-        # 3. Filtro de Líneas Basura Completas
-        # Si es corta y tiene palabras prohibidas o parece una fecha suelta
+        # 2. Limpieza de basura normal
         es_basura = False
         if len(linea_strip) < 50:
-            if re.match(r'^\d{2}/\d{4}$', linea_strip): # Fecha sola: 05/2025
+            if re.match(r'^\d{2}/\d{4}$', linea_strip): # Fecha sola
                 es_basura = True
             for marcador in marcadores_basura:
                 if marcador in linea_upper:
                     es_basura = True
                     break
-            # Filtro especial para códigos de papel sueltos (IU...)
-            if re.match(r'^[A-Z]{2}\d{6,}$', linea_strip):
+            if re.match(r'^[A-Z]{2}\d{6,}$', linea_strip): # Códigos IU...
                 es_basura = True
 
         if not es_basura:
-            # 4. Cirugía en línea (Borrar basura incrustada)
+            # Cirugía de palabras basura dentro de líneas de texto
             linea_procesada = linea
             for marcador in marcadores_basura:
-                # Reemplazamos el marcador por vacío, ignorando mayúsculas
                 linea_procesada = re.sub(re.escape(marcador), "", linea_procesada, flags=re.IGNORECASE)
             
-            # Limpieza de códigos IU incrustados
             linea_procesada = re.sub(r'\s[A-Z]{2}\d{6,}', "", linea_procesada)
             
-            # Si tras limpiar queda algo útil, lo guardamos
             if len(linea_procesada.strip()) > 2:
                 lineas_limpias.append(linea_procesada)
 
     texto = "\n".join(lineas_limpias)
 
-    # --- 3. PULIDO FINAL DE FORMATO ---
+    # D) PULIDO Y FORMATO (AQUÍ ESTABA EL ERROR DE LOS SALTOS)
+    
     texto = re.sub(r'-\s+', '', texto) 
     texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) 
     texto = re.sub(r'\s+', ' ', texto)
@@ -133,11 +123,17 @@ def limpiar_texto_registral(texto_crudo):
     texto = re.sub(r'(\()\s+', r'\1', texto)
     texto = re.sub(r'\s+\/\s+', '/', texto)
     
-    # Reconstrucción de párrafos
-    texto = re.sub(r'(\.)\s+([A-ZÁÉÍÓÚÑ])', r'\1\n\n\2', texto)
+    # RECONSTRUCCIÓN INTELIGENTE DE PÁRRAFOS
+    # Antes usábamos: r'(\.)\s+([A-Z])' -> Esto rompía D.N.I.
+    # Ahora usamos Lookbehind negativo (?<![A-Z]): 
+    # "Solo añade salto de línea si el punto NO tiene una mayúscula justo antes"
+    texto = re.sub(r'(?<![A-Z])\.\s+([A-ZÁÉÍÓÚÑ])', r'.\n\n\1', texto)
+    
+    # Corrección extra para "D." (Don/Doña) si quedó separado
+    texto = re.sub(r'\bD\.\n\n', 'D. ', texto)
 
     # Resaltado de Cabeceras
-    titulos = ["ESCRITURA", "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN"]
+    titulos = ["ESCRITURA", "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN", "ESTIPULACIONES"]
     for t in titulos:
         texto = re.sub(rf'({t})', r'\n\n\1', texto)
 
@@ -191,7 +187,7 @@ if uploaded_file:
             raw = uploaded_file.read()
             bar.progress(60, "OCR Google...")
             sucio = procesar_con_api_key(raw, st.secrets["GOOGLE_API_KEY"])
-            bar.progress(80, "Limpieza Segura...")
+            bar.progress(80, "Limpieza Inteligente...")
             limpio = limpiar_texto_registral(sucio)
             bar.progress(100, "Listo")
             bar.empty()
