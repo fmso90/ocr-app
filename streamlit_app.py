@@ -63,6 +63,7 @@ def transcribir_con_corte(api_key, archivo_bytes):
     INSTRUCCIONES DE LIMPIEZA:
     - Copia literal palabra por palabra hasta el punto de corte.
     - Elimina los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") que manchan el texto.
+    - Los párrafos bien separados y estructurados como en la original
 
     Devuelve un JSON con un solo campo:
     {
