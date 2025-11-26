@@ -2,59 +2,107 @@ import streamlit as st
 import google.generativeai as genai
 import json
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Digitalizador Registral (Selector)", page_icon="⚖️", layout="wide")
+# --- 1. CONFIGURACIÓN VISUAL PREMIUM ---
+st.set_page_config(
+    page_title="Digitalizador Registral Pro",
+    page_icon="🏛️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
+# CSS PARA DISEÑO DE DOCUMENTO
 st.markdown("""
 <style>
-    .stApp { background-color: #0e1117; color: #e0e0e0; }
-    div.block-container { max-width: 1000px; padding-top: 2rem; }
-    .stTextArea textarea { background-color: #161b22; border: 1px solid #30363d; color: #c9d1d9; font-family: 'Courier New', monospace; }
-    div.stButton > button { background-color: #238636; color: #fff; border: none; font-weight: 700; width: 100%; padding: 0.8rem; }
-    .success-box { padding: 1rem; background-color: #064e3b; border-radius: 8px; border: 1px solid #059669; margin-bottom: 1rem; }
+    /* Fondo General Oscuro */
+    .stApp { background-color: #0e1117; }
+    
+    /* Estilo Tarjeta de Datos (Resumen) */
+    .resumen-card {
+        background-color: #1e2329;
+        border-left: 4px solid #4ade80;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    /* Estilo "Papel" para Texto Literal */
+    .doc-paper {
+        background-color: #fdfbf7; /* Color hueso suave */
+        color: #1f1f1f; /* Texto oscuro para contraste */
+        padding: 25px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        font-family: 'Georgia', serif; /* Fuente tipo legal */
+        font-size: 15px;
+        line-height: 1.6;
+        white-space: pre-wrap; /* Respetar saltos de línea */
+        max-height: 400px;
+        overflow-y: auto;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+    }
+
+    /* Títulos */
+    h1, h2, h3 { color: #ffffff !important; font-family: 'Helvetica Neue', sans-serif; }
+    
+    /* Botones */
+    .stButton > button {
+        width: 100%;
+        border-radius: 6px;
+        font-weight: 600;
+    }
+    
+    /* Ocultar elementos extra */
     #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNCIONES DE IA ---
+# --- 2. GESTOR DE MODELOS ---
 def obtener_modelos_disponibles(api_key):
-    """Pregunta a Google qué modelos tienes activos en tu cuenta."""
     genai.configure(api_key=api_key)
-    modelos = []
-    try:
-        for m in genai.list_models():
-            # Filtramos solo los modelos que sirven para generar texto (Gemini)
-            if 'generateContent' in m.supported_generation_methods:
-                modelos.append(m.name)
-        # Ordenamos para que los Pro salgan primero si es posible
-        modelos.sort(reverse=True)
-        return modelos
-    except Exception as e:
-        return []
+    modelos_prioritarios = [
+        "models/gemini-pro-latest", # El que te ha funcionado bien
+        "models/gemini-1.5-pro",
+        "models/gemini-1.5-pro-002",
+        "models/gemini-1.5-flash"
+    ]
+    return modelos_prioritarios
 
-def transcribir_literal(api_key, nombre_modelo, archivo_bytes):
+# --- 3. CEREBRO DE EXTRACCIÓN ---
+def transcribir_y_resumir(api_key, nombre_modelo, archivo_bytes):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(nombre_modelo)
     
     prompt = """
-    Actúa como un Oficial de Registro experto. Transcribe el PDF LITERALMENTE.
-    
-    INSTRUCCIONES DE SEGURIDAD (TEMP 0.0):
-    1. COPIA el texto palabra por palabra. NO resumas. NO uses viñetas.
-    2. LIMPIEZA: Elimina SOLO los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") y notas al margen.
-    3. MANTÉN EXACTOS: Nombres, DNI, Fincas y Referencias Catastrales. Si algo no se lee, pon [ILEGIBLE].
+    Actúa como Oficial de Registro. Tu misión es doble: 
+    1. TRANSCRIBIR LITERALMENTE las descripciones.
+    2. EXTRAER un LISTADO RESUMEN de las fincas.
 
-    Devuelve JSON:
+    INSTRUCCIONES DE LIMPIEZA:
+    - Elimina SOLO la "basura" visual (sellos, timbres, encabezados repetitivos).
+    - NO corrijas ortografía. NO uses viñetas en los literales.
+
+    Devuelve un JSON con esta estructura exacta:
     {
-        "intervinientes": "Texto literal del bloque de comparecencia e intervención.",
-        "fincas": "Texto literal de la descripción de las fincas.",
-        "texto_completo": "Texto íntegro del documento limpio."
+        "intervinientes_literal": "Texto literal completo del bloque de comparecencia.",
+        
+        "listado_fincas_resumen": [
+            {
+                "id": "1", 
+                "registro": "Nº Finca Registral", 
+                "municipio": "Municipio", 
+                "precio": "Valor o Precio (solo el número y moneda, ej: 345 euros). Si no consta, pon 'Sin valoración'."
+            }
+        ],
+        
+        "descripcion_fincas_literal": "Texto literal completo de la descripción de TODAS las fincas, una tras otra separadas por doble salto de línea.",
+        
+        "texto_completo_limpio": "El texto íntegro del documento unido y limpio."
     }
     """
     
-    # Configuración "Robot" (Cero creatividad para evitar invenciones)
     config = genai.types.GenerationConfig(
-        temperature=0.0,
+        temperature=0.0, # Cero creatividad
         response_mime_type="application/json"
     )
 
@@ -67,56 +115,86 @@ def transcribir_literal(api_key, nombre_modelo, archivo_bytes):
 def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
-# --- INTERFAZ ---
-st.title("DIGITALIZADOR REGISTRAL (SELECTOR)")
+# --- 4. INTERFAZ ---
+st.title("DIGITALIZADOR REGISTRAL")
 
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("⛔ Falta API Key en Secrets.")
     st.stop()
 
-# 1. CARGAR MODELOS DISPONIBLES
-try:
-    lista_modelos = obtener_modelos_disponibles(st.secrets["GOOGLE_API_KEY"])
-    if not lista_modelos:
-        st.error("❌ Tu API Key es válida, pero no tiene acceso a ningún modelo Gemini. Crea una nueva en Google AI Studio.")
-        st.stop()
-        
-    # Selector de modelo en la barra lateral o arriba
-    modelo_elegido = st.selectbox(
-        "🧠 Selecciona el motor de Inteligencia Artificial:", 
-        lista_modelos,
-        index=0, # Por defecto elige el primero (suele ser el más nuevo)
-        help="Elige 'gemini-1.5-pro' o superior para mejores resultados."
-    )
-    
-except Exception as e:
-    st.error(f"Error de conexión: {e}")
-    st.stop()
+# Selector de modelo
+lista_modelos = obtener_modelos_disponibles(st.secrets["GOOGLE_API_KEY"])
+modelo_elegido = st.selectbox("Motor IA:", lista_modelos, index=0)
 
 uploaded_file = st.file_uploader("Sube escritura (PDF)", type=['pdf'])
 st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file:
-    if st.button(f"TRANSCRIBIR CON {modelo_elegido.upper()}"):
-        with st.spinner(f'Leído con {modelo_elegido}...'):
+    if st.button("PROCESAR DOCUMENTO"):
+        with st.spinner('🏗️ Extrayendo datos y limpiando texto...'):
             try:
                 bytes_data = uploaded_file.read()
-                
-                # Ejecutar transcripción
-                resultado = transcribir_literal(st.secrets["GOOGLE_API_KEY"], modelo_elegido, bytes_data)
+                resultado = transcribir_y_resumir(st.secrets["GOOGLE_API_KEY"], modelo_elegido, bytes_data)
                 datos = json.loads(limpiar_json(resultado))
                 
-                st.markdown(f"<div class='success-box'>✅ <b>Éxito usando:</b> {modelo_elegido}</div>", unsafe_allow_html=True)
+                st.success("✅ Documento Digitalizado")
                 
-                st.subheader("👥 Intervinientes (Literal)")
-                st.text_area("intervinientes", value=datos.get("intervinientes", ""), height=200)
+                # --- SECCIÓN 1: TEXTO COMPLETO (DESCARGA) ---
+                st.markdown("### 1. Documento Completo")
+                st.download_button(
+                    label="⬇️ DESCARGAR TEXTO ÍNTEGRO LIMPIO (.TXT)",
+                    data=datos.get("texto_completo_limpio", ""),
+                    file_name="escritura_completa.txt",
+                    mime="text/plain",
+                    key="btn_full"
+                )
                 
-                st.subheader("🏡 Fincas (Literal)")
-                st.text_area("fincas", value=datos.get("fincas", ""), height=300)
+                st.markdown("---")
+
+                # --- SECCIÓN 2: LISTADO RESUMEN (VISUAL + DESCARGA) ---
+                st.markdown("### 2. Listado Resumen de Fincas")
                 
-                with st.expander("📄 Texto Completo"):
-                    st.text_area("completo", value=datos.get("texto_completo", ""), height=600)
+                # Crear texto formateado para el listado
+                texto_listado = ""
+                listado = datos.get("listado_fincas_resumen", [])
+                
+                if listado:
+                    for f in listado:
+                        linea = f"Finca {f.get('registro', '?')} de {f.get('municipio', '?')}, {f.get('precio', '0')}."
+                        texto_listado += linea + "\n"
+                        # Visualización en tarjetas
+                        st.markdown(f"""
+                        <div class='resumen-card'>
+                            <b>🏡 Finca Registral:</b> {f.get('registro', '?')} <br>
+                            <b>📍 Municipio:</b> {f.get('municipio', '?')} <br>
+                            <b>💰 Valoración:</b> {f.get('precio', '?')}
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.warning("No se detectaron fincas estructuradas.")
+
+                st.download_button(
+                    label="⬇️ DESCARGAR LISTADO RESUMEN (.TXT)",
+                    data=texto_listado,
+                    file_name="listado_fincas.txt",
+                    mime="text/plain",
+                    key="btn_list"
+                )
+
+                st.markdown("---")
+
+                # --- SECCIÓN 3: DESCRIPCIONES LITERALES (VISUAL BONITA + DESCARGA) ---
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### 3. Intervinientes (Literal)")
+                    st.markdown(f"<div class='doc-paper'>{datos.get('intervinientes_literal', '')}</div>", unsafe_allow_html=True)
+                    st.download_button("⬇️ Descargar Intervinientes", datos.get("intervinientes_literal", ""), "intervinientes.txt")
+
+                with col2:
+                    st.markdown("### 4. Descripciones Fincas (Literal)")
+                    st.markdown(f"<div class='doc-paper'>{datos.get('descripcion_fincas_literal', '')}</div>", unsafe_allow_html=True)
+                    st.download_button("⬇️ Descargar Descripciones", datos.get("descripcion_fincas_literal", ""), "descripciones.txt")
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
-                st.warning("Prueba a seleccionar otro modelo de la lista de arriba.")
