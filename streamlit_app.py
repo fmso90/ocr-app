@@ -2,33 +2,79 @@ import streamlit as st
 import google.generativeai as genai
 import json
 
-# --- 1. CONFIGURACIÓN VISUAL ---
+# --- 1. CONFIGURACIÓN DE PÁGINA (MODO DARK TECH) ---
 st.set_page_config(
-    page_title="Digitalizador Registral",
-    page_icon="📜",
+    page_title="F90 OCR",
+    page_icon="📄",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
+# --- 2. CSS PARA REPLICAR TU FOTO EXACTA ---
 st.markdown("""
 <style>
-    .stApp { background-color: #0e1117; }
-    h1, h2, h3, h4 { color: #ffffff !important; font-family: 'Helvetica Neue', sans-serif; text-align: center; }
-    
-    /* Botón Descarga */
-    .stButton > button { 
-        width: 100%; 
-        font-weight: bold; 
-        border-radius: 8px; 
-        padding: 0.8rem; 
-        background-color: #2ea043; 
-        color: white; 
-        border: none;
-        font-size: 1.1rem;
-    }
-    .stButton > button:hover { background-color: #238636; }
+    /* Importar fuente moderna (Inter) */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
 
-    /* Caja de texto */
+    /* Fondo Negro Absoluto */
+    .stApp {
+        background-color: #000000;
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* Título Gigante Centrado (Como en la foto) */
+    .custom-title {
+        color: #ffffff;
+        font-size: 3.5rem;
+        font-weight: 600;
+        text-align: center;
+        margin-bottom: 0.2rem;
+        line-height: 1.1;
+    }
+    .custom-subtitle {
+        color: #a1a1aa; /* Gris claro */
+        font-size: 1.2rem;
+        text-align: center;
+        margin-bottom: 3rem;
+        font-weight: 400;
+    }
+
+    /* Cajón de Subida (El borde discontinuo de la foto) */
+    [data-testid='stFileUploader'] {
+        background-color: #121316; /* Gris muy oscuro */
+        border: 2px dashed #3f3f46; /* Borde discontinuo */
+        border-radius: 16px;
+        padding: 40px 20px;
+        text-align: center;
+        transition: border-color 0.3s ease;
+    }
+    
+    [data-testid='stFileUploader']:hover {
+        border-color: #71717a; /* Se ilumina al pasar el ratón */
+    }
+
+    /* Ocultar textos por defecto de Streamlit para limpiar */
+    [data-testid='stFileUploader'] section > span {
+        color: #a1a1aa;
+    }
+    
+    /* Botón de Acción (Verde y Ancho) */
+    .stButton > button {
+        width: 100%;
+        background-color: #22c55e; /* Verde vibrante */
+        color: white;
+        border: none;
+        padding: 14px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        margin-top: 20px;
+    }
+    .stButton > button:hover {
+        background-color: #16a34a;
+    }
+
+    /* Área de texto resultado (Papel limpio) */
     .stTextArea textarea {
         background-color: #fdfbf7;
         color: #1f1f1f;
@@ -36,18 +82,22 @@ st.markdown("""
         font-family: 'Georgia', serif;
         font-size: 15px;
         line-height: 1.6;
-        border: 1px solid #444;
+        border: 1px solid #333;
     }
     
     #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CEREBRO CON "FRENO DE MANO" ---
+# --- 3. TÍTULO PERSONALIZADO (HTML) ---
+st.markdown('<div class="custom-title">Transforma tus PDFs<br>en texto limpio.</div>', unsafe_allow_html=True)
+st.markdown('<div class="custom-subtitle">Arrastra tu escritura y obtén solo la parte dispositiva.</div>', unsafe_allow_html=True)
+
+# --- 4. LÓGICA INTELIGENTE (MOTOR V16 - RECORTE) ---
 def transcribir_con_corte(api_key, archivo_bytes):
     genai.configure(api_key=api_key)
     
-    # Usamos el modelo Pro para asegurar que entiende la instrucción de parada
+    # Usamos el modelo Pro Latest
     model = genai.GenerativeModel('models/gemini-pro-latest')
     
     prompt = """
@@ -85,20 +135,18 @@ def transcribir_con_corte(api_key, archivo_bytes):
 def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
-# --- 3. INTERFAZ ---
-st.title("DIGITALIZADOR REGISTRAL 📚")
-st.markdown("#### Transcripción Literal de documentos")
+# --- 5. INTERFAZ FUNCIONAL ---
 
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("⛔ Falta API Key en Secrets.")
     st.stop()
 
-uploaded_file = st.file_uploader("Sube la escritura (PDF)", type=['pdf'])
-st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
+# Uploader minimalista (sin etiqueta visible para que quede como la foto)
+uploaded_file = st.file_uploader(" ", type=['pdf'], label_visibility="collapsed")
 
 if uploaded_file:
     if st.button("PROCESAR DOCUMENTO"):
-        with st.spinner('🧠 Transcribiendo...'):
+        with st.spinner('🧠 Analizando y recortando...'):
             try:
                 bytes_data = uploaded_file.read()
                 
@@ -107,7 +155,8 @@ if uploaded_file:
                 datos = json.loads(limpiar_json(resultado))
                 texto_final = datos.get("texto_cortado", "")
                 
-                st.success("✅ Documento Recortado y Limpio")
+                # Mensaje discreto
+                st.success("✅ Listo")
                 
                 # BOTÓN DE DESCARGA
                 st.download_button(
