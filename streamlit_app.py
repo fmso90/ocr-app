@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import json
 
-# --- 1. CONFIGURACIÓN (FONDO NEGRO) ---
+# --- 1. CONFIGURACIÓN DE PÁGINA (DISEÑO CENTRADO) ---
 st.set_page_config(
     page_title="F90 OCR",
     page_icon="📄",
@@ -10,132 +10,127 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. EL CSS "MÁGICO" (TRADUCCIÓN VISUAL) ---
+# --- 2. CSS PARA REPLICAR EL DISEÑO DE LA FOTO ---
 st.markdown("""
 <style>
-    /* Importar fuente moderna */
+    /* Fuente moderna */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
 
-    /* FONDO GENERAL NEGRO PURO */
+    /* FONDO NEGRO PURO */
     .stApp {
         background-color: #000000;
         font-family: 'Inter', sans-serif;
     }
 
-    /* TÍTULO PRINCIPAL */
+    /* TÍTULO PERSONALIZADO (Grande y blanco como en la foto) */
     .custom-title {
-        font-size: 3.5rem;
-        font-weight: 700;
+        font-size: 3rem;
+        font-weight: 600;
         color: #ffffff;
         text-align: center;
-        line-height: 1.1;
-        margin-top: 3rem;
+        line-height: 1.2;
+        margin-top: 2rem;
         margin-bottom: 3rem;
     }
 
-    /* --- HACK PARA EL UPLOADER (ESTILO FOTO) --- */
-    
-    /* 1. El contenedor del cajón */
+    /* ESTILO DEL CAJÓN DE SUBIDA (UPLOADER) */
     [data-testid='stFileUploader'] {
-        background-color: #111827; /* Gris muy oscuro */
-        border: 2px dashed #374151; /* Borde discontinuo gris */
+        background-color: #121316; /* Gris muy oscuro */
+        border: 2px dashed #3f3f46; /* Borde discontinuo gris */
         border-radius: 20px;
-        padding: 20px;
+        padding: 40px 20px;
+        text-align: center;
     }
-    
-    /* 2. OCULTAR el texto original en inglés (Drag and drop...) */
+
+    /* HACK: OCULTAR TEXTO INGLÉS ORIGINAL */
     [data-testid='stFileUploader'] section > div:first-child {
         display: none;
     }
     
-    /* 3. INYECTAR el texto en ESPAÑOL y el icono */
+    /* HACK: INYECTAR TEXTO ESPAÑOL Y ICONO */
     [data-testid='stFileUploader'] section::before {
         content: "☁️ Arrastra tu PDF aquí"; 
         color: #e5e5e5;
-        font-size: 1.2rem;
+        font-size: 1.3rem;
         font-weight: 600;
         display: block;
         text-align: center;
         margin-bottom: 10px;
-        margin-top: 10px;
     }
     
-    /* 4. Pequeño texto debajo */
     [data-testid='stFileUploader'] section::after {
         content: "Límite 200MB • PDF"; 
-        color: #6b7280;
+        color: #71717a;
         font-size: 0.8rem;
         display: block;
         text-align: center;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
     }
 
-    /* 5. El botón "Browse files" es difícil de traducir por CSS, 
-       pero lo hacemos más discreto y estilo botón */
-    [data-testid='stFileUploader'] button {
-        border: 1px solid #444;
-        color: white;
-        background-color: #000;
-        border-radius: 8px;
-        margin: 0 auto;
-        display: block;
-    }
-
-    /* --- BOTÓN VERDE DE ACCIÓN --- */
+    /* BOTÓN PRINCIPAL VERDE */
     .stButton > button {
         width: 100%;
-        background-color: #22c55e; /* Verde de tu foto */
+        background-color: #22c55e; /* Verde brillante */
         color: white;
-        font-weight: 600;
         border: none;
-        padding: 15px;
+        padding: 12px 24px;
         border-radius: 8px;
-        font-size: 18px;
+        font-weight: 600;
+        font-size: 16px;
         margin-top: 20px;
+        transition: all 0.2s;
     }
     .stButton > button:hover {
-        background-color: #16a34a;
+        background-color: #16a34a; /* Verde más oscuro */
+        box-shadow: 0 0 15px rgba(34, 197, 94, 0.3);
         color: white;
     }
-    
-    /* ÁREA DE TEXTO LIMPIA */
-    .stTextArea textarea {
-        background-color: #1c1c1c;
-        color: #e5e5e5;
-        border: 1px solid #333;
-        font-family: 'Georgia', serif;
-    }
 
-    /* OCULTAR ELEMENTOS EXTRA */
+    /* ÁREA DE TEXTO RESULTADO (Papel limpio) */
+    .stTextArea textarea {
+        background-color: #1c1c1c; /* Gris oscuro */
+        color: #e5e5e5; /* Texto claro */
+        border: 1px solid #333;
+        border-radius: 8px;
+        font-family: 'Georgia', serif;
+        font-size: 15px;
+        line-height: 1.6;
+    }
+    
+    /* Ocultar elementos extra */
     #MainMenu, footer, header { visibility: hidden; }
     
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. TÍTULO VISUAL ---
+# --- 3. TÍTULO VISUAL HTML ---
 st.markdown('<div class="custom-title">Transforma tus PDFs<br>en texto limpio.</div>', unsafe_allow_html=True)
 
-# --- 4. LÓGICA DEL CEREBRO (MOTOR V16) ---
+# --- 4. TU LÓGICA DEL CEREBRO (INTACTA) ---
 def transcribir_con_corte(api_key, archivo_bytes):
     genai.configure(api_key=api_key)
+    
+    # Usamos el modelo Pro Latest
     model = genai.GenerativeModel('models/gemini-pro-latest')
     
     prompt = """
     Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura, pero SOLO LA PARTE DISPOSITIVA.
-    
-    INSTRUCCIONES CRÍTICAS:
-    1. Comienza a transcribir desde el principio.
-    2. DETENTE antes de la cláusula "PROTECCIÓN DE DATOS" (o "DATOS PERSONALES").
-    3. NO transcribas nada posterior (ni firmas, ni anexos).
-    
-    LIMPIEZA:
-    - Copia literal palabra por palabra.
-    - Elimina los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") dentro del texto.
-    - Une los párrafos.
 
-    Devuelve JSON:
+    INSTRUCCIONES DE CORTE (CRÍTICO):
+    1. Comienza a transcribir desde el principio del documento.
+    2. DETENTE INMEDIATAMENTE antes de llegar a la cláusula titulada "PROTECCIÓN DE DATOS" (o "DATOS PERSONALES").
+    3. NO transcribas la cláusula de protección de datos.
+    4. NO transcribas nada de lo que venga después (ni el Otorgamiento, ni Firmas, ni Anexos, ni Documentos Unidos).
+    5. ¡IGNORA TODO EL RESTO DEL PDF A PARTIR DE ESE PUNTO!
+
+    INSTRUCCIONES DE LIMPIEZA:
+    - Copia literal palabra por palabra hasta el punto de corte.
+    - Elimina los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") que manchan el texto.
+    - Une los párrafos para lectura continua.
+
+    Devuelve un JSON con un solo campo:
     {
-        "texto_cortado": "El texto literal limpio hasta el corte."
+        "texto_cortado": "El texto literal limpio hasta antes de Protección de Datos."
     }
     """
     
@@ -153,28 +148,30 @@ def transcribir_con_corte(api_key, archivo_bytes):
 def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
-# --- 5. INTERFAZ ---
+# --- 5. INTERFAZ LÓGICA ---
 
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("⛔ Falta la API Key en los Secrets.")
     st.stop()
 
-# Uploader invisible (el CSS se encarga de pintarlo bonito en español)
+# El label está oculto ("collapsed") porque usamos el CSS para poner el texto en español encima
 uploaded_file = st.file_uploader(" ", type=['pdf'], label_visibility="collapsed")
 
 if uploaded_file:
-    # Botón verde gigante
+    # Botón de acción verde
     if st.button("PROCESAR DOCUMENTO"):
         with st.spinner('🧠 Analizando y limpiando...'):
             try:
                 bytes_data = uploaded_file.read()
                 
+                # Llamada a tu lógica
                 resultado = transcribir_con_corte(st.secrets["GOOGLE_API_KEY"], bytes_data)
                 datos = json.loads(limpiar_json(resultado))
                 texto_final = datos.get("texto_cortado", "")
                 
-                st.success("✅ Transformación completada")
+                st.success("✅ Documento procesado")
                 
+                # BOTÓN DE DESCARGA
                 st.download_button(
                     label="⬇️ DESCARGAR TEXTO (.TXT)",
                     data=texto_final,
@@ -182,9 +179,10 @@ if uploaded_file:
                     mime="text/plain"
                 )
                 
+                # VISTA PREVIA
                 st.text_area("Vista Previa", value=texto_final, height=600, label_visibility="collapsed")
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 if "404" in str(e):
-                    st.warning("Verifica tu API Key.")
+                    st.warning("Verifica tu API Key o reinicia la app.")
