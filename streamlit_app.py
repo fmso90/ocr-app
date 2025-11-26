@@ -4,7 +4,7 @@ import json
 
 # --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(
-    page_title="Digitalizador Registral Pro",
+    page_title="Digitalizador Registral",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -52,21 +52,22 @@ st.markdown("""
 def transcribir_y_extraer(api_key, archivo_bytes):
     genai.configure(api_key=api_key)
     
-    # USAMOS DIRECTAMENTE EL MODELO MÁS POTENTE Y ACTUAL
-    model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
+    # USAMOS EXACTAMENTE EL MODELO QUE HAS PEDIDO
+    model = genai.GenerativeModel('models/gemini-pro-latest')
     
     prompt = """
     Actúa como Oficial de Registro. Tu misión es DIGITALIZAR esta escritura.
 
+    INSTRUCCIONES DE EXTRACCIÓN:
     1. TRANSCRIPCIÓN LITERAL:
-       - Copia el texto palabra por palabra.
-       - ELIMINA SOLO la "basura" de los sellos (timbres, precios, lemas en latín) que interrumpe las frases.
-       - NO borres nombres de notarios ni lugares si son parte del texto legal.
+       - Copia el texto palabra por palabra en los campos literales.
+       - ELIMINA SOLO la "basura" visual (sellos, timbres) que interrumpe las frases.
+       - NO borres nombres propios ni lugares del texto legal.
 
-    2. EXTRACCIÓN ESTRUCTURADA:
-       - Genera un listado resumen de las fincas.
+    2. LISTADO DE FINCAS:
+       - Extrae los datos clave para hacer una lista resumen.
 
-    Devuelve un JSON exacto con:
+    Devuelve un JSON exacto con esta estructura:
     {
         "texto_completo_limpio": "El texto ÍNTEGRO de todo el documento unido, sin sellos.",
         
@@ -98,7 +99,8 @@ def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
 # --- 3. INTERFAZ ---
-st.title("DIGITALIZADOR REGISTRAL | PRO")
+st.title("DIGITALIZADOR REGISTRAL")
+st.caption("Motor: gemini-pro-latest")
 
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("⛔ Falta API Key en Secrets.")
@@ -109,11 +111,11 @@ st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file:
     if st.button("PROCESAR DOCUMENTO"):
-        with st.spinner('🧠 Gemini Pro está leyendo y estructurando el documento...'):
+        with st.spinner('🧠 Procesando con gemini-pro-latest...'):
             try:
                 bytes_data = uploaded_file.read()
                 
-                # Llamada directa al modelo hardcodeado
+                # Llamada
                 resultado = transcribir_y_extraer(st.secrets["GOOGLE_API_KEY"], bytes_data)
                 datos = json.loads(limpiar_json(resultado))
                 
@@ -130,7 +132,7 @@ if uploaded_file:
                         data=texto_full,
                         file_name="escritura_completa.txt",
                         mime="text/plain",
-                        type="primary" # Botón destacado
+                        type="primary"
                     )
                 with col_view:
                     with st.expander("Vista previa del texto completo"):
@@ -138,14 +140,13 @@ if uploaded_file:
 
                 st.markdown("---")
 
-                # --- B. LISTADO DE FINCAS (TU FORMATO) ---
+                # --- B. LISTADO DE FINCAS (TU FORMATO EXACTO) ---
                 st.subheader("🏡 Listado de Fincas")
                 
                 lista_fincas = datos.get("listado_fincas", [])
                 txt_listado = ""
                 
                 if lista_fincas:
-                    # Generar string para descarga y mostrar tarjetas
                     for f in lista_fincas:
                         # Formato visual
                         st.markdown(f"""
@@ -155,8 +156,10 @@ if uploaded_file:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # Formato texto para el archivo: "1-3456 de Almadén, 345 euros"
-                        txt_listado += f"{f.get('registro', '?')} de {f.get('municipio', '?')}, {f.get('precio', '?')}.\n"
+                        # Formato solicitado: "1-3456 de Almadén, 345 euros"
+                        # Usamos f-string para clavar el formato
+                        linea_txt = f"{f.get('registro', '?')} de {f.get('municipio', '?')}, {f.get('precio', '?')}"
+                        txt_listado += linea_txt + "\n"
                     
                     st.download_button("⬇️ Descargar Listado (.txt)", txt_listado, "listado_fincas.txt")
                 else:
@@ -164,7 +167,7 @@ if uploaded_file:
 
                 st.markdown("---")
 
-                # --- C. LITERALES (INTERVINIENTES Y DESCRIPCIONES) ---
+                # --- C. LITERALES ---
                 c1, c2 = st.columns(2)
                 
                 with c1:
@@ -182,4 +185,4 @@ if uploaded_file:
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 if "404" in str(e):
-                    st.warning("El modelo 'gemini-1.5-pro-latest' no responde. Verifica tu API Key.")
+                    st.warning("El modelo 'gemini-pro-latest' no responde. Verifica tu API Key o región.")
