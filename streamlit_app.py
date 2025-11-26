@@ -4,21 +4,18 @@ import json
 
 # --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(
-    page_title="Digitalizador Registral",
-    page_icon="📄",
-    layout="centered", # Centrado para enfocar la atención
+    page_title="Digitalizador Registral (Versión Corta)",
+    page_icon="✂️",
+    layout="centered",
     initial_sidebar_state="collapsed"
 )
 
 st.markdown("""
 <style>
-    /* Fondo oscuro */
     .stApp { background-color: #0e1117; }
+    h1, h2, h3, h4 { color: #ffffff !important; font-family: 'Helvetica Neue', sans-serif; text-align: center; }
     
-    /* Títulos y botones */
-    h1, h2, h3 { color: #ffffff !important; font-family: 'Helvetica Neue', sans-serif; text-align: center; }
-    
-    /* Botón de descarga gigante y verde */
+    /* Botón Descarga */
     .stButton > button { 
         width: 100%; 
         font-weight: bold; 
@@ -31,45 +28,51 @@ st.markdown("""
     }
     .stButton > button:hover { background-color: #238636; }
 
-    /* Área de texto estilo documento */
+    /* Caja de texto */
     .stTextArea textarea {
-        background-color: #fdfbf7; /* Color papel hueso */
+        background-color: #fdfbf7;
         color: #1f1f1f;
         border-radius: 4px;
         font-family: 'Georgia', serif;
         font-size: 15px;
         line-height: 1.6;
+        border: 1px solid #444;
     }
     
     #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LÓGICA INTELIGENTE ---
-def transcribir_documento_entero(api_key, archivo_bytes):
+# --- 2. CEREBRO CON "FRENO DE MANO" ---
+def transcribir_con_corte(api_key, archivo_bytes):
     genai.configure(api_key=api_key)
     
-    # MODELO SOLICITADO
-    model = genai.GenerativeModel('models/gemini-pro-latest')
+    # Usamos el modelo Pro para asegurar que entiende la instrucción de parada
+    model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
     
     prompt = """
-    Actúa como un Oficial de Registro experto en mecanografía.
-    Tu ÚNICA misión es: TRANSCRIBIR EL TEXTO LITERALMENTE.
+    Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura, pero SOLO LA PARTE DISPOSITIVA.
 
-    INSTRUCCIONES PRECISAS:
-    1. Copia el texto palabra por palabra, párrafo por párrafo.
-    2. NO RESUMAS NADA. NO uses viñetas. Mantén la prosa original.
-    3. LIMPIEZA: Elimina el texto de los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS", "NOTARIA DE...") que mancha el documento.
-    4. CONTINUIDAD: Une el texto de las páginas para que se lea seguido.
+    INSTRUCCIONES DE CORTE (CRÍTICO):
+    1. Comienza a transcribir desde el principio del documento.
+    2. DETENTE INMEDIATAMENTE antes de llegar a la cláusula titulada "PROTECCIÓN DE DATOS" (o "DATOS PERSONALES").
+    3. NO transcribas la cláusula de protección de datos.
+    4. NO transcribas nada de lo que venga después (ni el Otorgamiento, ni Firmas, ni Anexos, ni Documentos Unidos).
+    5. ¡IGNORA TODO EL RESTO DEL PDF A PARTIR DE ESE PUNTO!
+
+    INSTRUCCIONES DE LIMPIEZA:
+    - Copia literal palabra por palabra hasta el punto de corte.
+    - Elimina los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") que manchan el texto.
+    - Une los párrafos para lectura continua.
 
     Devuelve un JSON con un solo campo:
     {
-        "texto_completo": "Aquí va todo el texto del documento, limpio y literal."
+        "texto_cortado": "El texto literal limpio hasta antes de Protección de Datos."
     }
     """
     
     config = genai.types.GenerationConfig(
-        temperature=0.0, # Cero invención
+        temperature=0.0,
         response_mime_type="application/json"
     )
 
@@ -83,8 +86,8 @@ def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
 # --- 3. INTERFAZ ---
-st.title("DIGITALIZADOR REGISTRAL")
-st.caption("Transcripción Literal • Limpieza de Sellos • Texto Íntegro")
+st.title("DIGITALIZADOR | SOLO CUERPO")
+st.markdown("#### Transcripción Literal (Corta antes de Prot. Datos)")
 
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("⛔ Falta API Key en Secrets.")
@@ -94,31 +97,30 @@ uploaded_file = st.file_uploader("Sube la escritura (PDF)", type=['pdf'])
 st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file:
-    if st.button("PROCESAR Y LIMPIAR"):
-        with st.spinner('🧠 Leyendo documento completo con gemini-pro-latest...'):
+    if st.button("PROCESAR DOCUMENTO"):
+        with st.spinner('✂️ Leyendo y recortando anexos...'):
             try:
                 bytes_data = uploaded_file.read()
                 
                 # Llamada
-                resultado = transcribir_documento_entero(st.secrets["GOOGLE_API_KEY"], bytes_data)
+                resultado = transcribir_con_corte(st.secrets["GOOGLE_API_KEY"], bytes_data)
                 datos = json.loads(limpiar_json(resultado))
-                texto_final = datos.get("texto_completo", "")
+                texto_final = datos.get("texto_cortado", "")
                 
-                st.success("✅ Documento Procesado")
+                st.success("✅ Documento Recortado y Limpio")
                 
-                # BOTÓN DE DESCARGA GRANDE
+                # BOTÓN DE DESCARGA
                 st.download_button(
-                    label="⬇️ DESCARGAR TEXTO COMPLETO (.TXT)",
+                    label="⬇️ DESCARGAR TEXTO (.TXT)",
                     data=texto_final,
-                    file_name="escritura_completa.txt",
+                    file_name="escritura_cuerpo.txt",
                     mime="text/plain"
                 )
                 
                 # VISTA PREVIA
-                st.markdown("### Vista Previa:")
-                st.text_area("preview", value=texto_final, height=600, label_visibility="collapsed")
+                st.text_area("Vista Previa", value=texto_final, height=600, label_visibility="collapsed")
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 if "404" in str(e):
-                    st.warning("El modelo 'gemini-pro-latest' no responde. Verifica tu API Key o región.")
+                    st.warning("Verifica tu API Key.")
