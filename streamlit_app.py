@@ -133,7 +133,7 @@ if not api_key:
 def transcribir_con_corte(key, archivo_bytes):
     genai.configure(api_key=key)
     # Usamos 1.5 Pro para máxima calidad y cero errores vacíos
-    model = genai.GenerativeModel('models/gemini-1.5-pro')
+    model = genai.GenerativeModel('models/gemini-pro-latest')
     
     prompt = """
     Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura, pero SOLO LA PARTE DISPOSITIVA.
