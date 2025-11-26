@@ -3,15 +3,15 @@ import google.generativeai as genai
 import json
 import os
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="F90 OCR",
-    page_icon="📄",
+    page_icon="🔒",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. ESTILO DARK TECH (LIMPIO) ---
+# --- 2. ESTILO DARK TECH (CSS) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
@@ -22,7 +22,7 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
     
-    /* Título */
+    /* Títulos */
     .custom-title {
         font-size: 3.5rem;
         font-weight: 600;
@@ -33,12 +33,12 @@ st.markdown("""
         line-height: 1.1;
     }
 
-    /* Uploader (Estilo Oscuro pero SIN iconos forzados) */
+    /* Uploader (Estilo Oscuro Limpio) */
     [data-testid='stFileUploader'] {
         background-color: #111827;
         border: 2px dashed #3f3f46;
         border-radius: 20px;
-        padding: 20px;
+        padding: 30px;
     }
     
     /* Botón Verde */
@@ -58,6 +58,15 @@ st.markdown("""
         background-color: #16a34a;
     }
     
+    /* Inputs (Login) */
+    .stTextInput > div > div > input {
+        background-color: #111827;
+        color: #ffffff;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        padding: 10px;
+    }
+
     /* Área de Texto */
     .stTextArea textarea {
         background-color: #1c1c1c;
@@ -65,15 +74,50 @@ st.markdown("""
         border: 1px solid #333;
         border-radius: 8px;
         font-family: 'Georgia', serif;
+        font-size: 15px;
+        line-height: 1.6;
     }
     
+    /* Ocultar elementos extra */
     #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
+# --- 3. SISTEMA DE LOGIN (EL PORTERO) ---
+def check_password():
+    """Si devuelve False, detiene la app."""
+    if st.session_state.get("password_correct", False):
+        return True
+
+    # Diseño de la pantalla de bloqueo
+    st.markdown('<div style="text-align:center; margin-top:100px; margin-bottom:20px;"><h2 style="color:white;">Acceso Profesional</h2></div>', unsafe_allow_html=True)
+    
+    password = st.text_input("Introduce tu Licencia", type="password", placeholder="XXXX-XXXX-XXXX")
+    
+    if st.button("ENTRAR"):
+        # CLAVES VÁLIDAS:
+        # 1. Tu clave maestra: F90-ADMIN
+        # 2. Simulación Lemon Squeezy: Cualquier texto largo con guiones (ej: 1234-ABCD)
+        if password == "F90-ADMIN" or (len(password) > 8 and "-" in password):
+            st.session_state["password_correct"] = True
+            st.rerun()
+        else:
+            st.error("⛔ Licencia no válida")
+            
+    return False
+
+# ¡AQUÍ ESTÁ EL CANDADO! Si no pasa, se para todo.
+if not check_password():
+    st.stop()
+
+# ======================================================
+#  SI LLEGA AQUÍ, ES QUE HA ENTRADO (ZONA PRIVADA)
+# ======================================================
+
+# Título Principal
 st.markdown('<div class="custom-title">Transforma tus PDFs<br>en texto limpio.</div>', unsafe_allow_html=True)
 
-# --- 3. GESTIÓN DE CLAVES ---
+# --- 4. GESTIÓN DE CLAVES (RENDER) ---
 api_key = os.environ.get("GOOGLE_API_KEY")
 if not api_key:
     try:
@@ -85,25 +129,19 @@ if not api_key:
     st.error("⛔ Error: Falta la API Key. Configúrala en Render.")
     st.stop()
 
-# --- 4. LÓGICA ---
+# --- 5. LÓGICA DEL CEREBRO ---
 def transcribir_con_corte(key, archivo_bytes):
     genai.configure(api_key=key)
+    # Usamos 1.5 Pro para máxima calidad y cero errores vacíos
     model = genai.GenerativeModel('models/gemini-1.5-pro')
     
     prompt = """
     Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura, pero SOLO LA PARTE DISPOSITIVA.
-
-    INSTRUCCIONES DE CORTE (CRÍTICO):
-    1. Comienza a transcribir desde el principio del documento.
-    2. DETENTE INMEDIATAMENTE antes de llegar a la cláusula titulada "PROTECCIÓN DE DATOS" (o "DATOS PERSONALES").
-    3. NO transcribas la cláusula de protección de datos.
-    4. NO transcribas nada de lo que venga después (ni el Otorgamiento, ni Firmas, ni Anexos, ni Documentos Unidos).
-    5. ¡IGNORA TODO EL RESTO DEL PDF A PARTIR DE ESE PUNTO!
-
-    INSTRUCCIONES DE LIMPIEZA:
-    - Copia literal palabra por palabra hasta el punto de corte.
-    - Elimina los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") que manchan el texto.
-    - Los párrafos bien separados y estructurados como en la original
+    1. Comienza a transcribir desde el principio.
+    2. DETENTE INMEDIATAMENTE antes de "PROTECCIÓN DE DATOS".
+    3. NO transcribas nada posterior.
+    4. Elimina sellos ("TIMBRE", "NIHIL PRIUS") del texto.
+    5. Copia literal.
     Devuelve JSON: { "texto_cortado": "Texto limpio..." }
     """
     config = genai.types.GenerationConfig(temperature=0.0, response_mime_type="application/json")
@@ -116,10 +154,7 @@ def transcribir_con_corte(key, archivo_bytes):
 def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
-# --- 5. INTERFAZ ---
-
-# Hemos quitado label_visibility="collapsed" para que se vea el texto nativo si quieres, 
-# o puedes poner un texto simple aquí.
+# --- 6. INTERFAZ DE LA HERRAMIENTA ---
 uploaded_file = st.file_uploader("Sube tu archivo PDF", type=['pdf'])
 
 if uploaded_file:
@@ -141,10 +176,4 @@ if uploaded_file:
                             file_name="escritura_limpia.txt",
                             mime="text/plain"
                         )
-                        st.text_area("Vista Previa", value=texto_final, height=600)
-                    else:
-                        st.warning("El documento parece vacío o ilegible.")
-                else:
-                    st.error("Error de conexión.")
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+                        st.text_area("
