@@ -18,11 +18,10 @@ st.markdown("""
 # --- 2. CONFIGURACIÓN GEMINI ---
 def configurar_gemini(api_key):
     genai.configure(api_key=api_key)
-    # CAMBIO IMPORTANTE: Usamos 'gemini-1.5-flash-latest' que suele ser más estable en detección
-    return genai.GenerativeModel('gemini-1.5-flash-latest')
+    # CORRECCIÓN: Usamos el nombre base estable, sin el sufijo "-latest"
+    return genai.GenerativeModel('gemini-1.5-flash')
 
 def limpiar_json(texto):
-    # Limpieza agresiva del formato Markdown que devuelve la IA
     return texto.replace("```json", "").replace("```", "").strip()
 
 # --- 3. EXTRACCIÓN ---
@@ -150,4 +149,4 @@ if uploaded_file:
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 if "404" in str(e):
-                    st.warning("Consejo: Ve a 'Manage app' (abajo derecha) -> 'Reboot app' para que se instalen las nuevas librerías.")
+                    st.warning("El modelo no responde. Prueba a reiniciar la app.")
