@@ -98,7 +98,7 @@ st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file:
     if st.button("PROCESAR DOCUMENTO"):
-        with st.spinner('🧠 Transcribiendo'):
+        with st.spinner('🧠 Transcribiendo...'):
             try:
                 bytes_data = uploaded_file.read()
                 
