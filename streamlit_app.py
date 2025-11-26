@@ -3,94 +3,77 @@ import google.generativeai as genai
 import json
 import os
 
-# --- 1. CONFIGURACIÓN VISUAL ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(
-    page_title="Digitalizador Registral",
+    page_title="F90 OCR",
     page_icon="📄",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS PERSONALIZADO (ESTILO DARK TECH) ---
+# --- 2. ESTILO DARK TECH (LIMPIO) ---
 st.markdown("""
 <style>
-    /* Importar fuente moderna */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-
-    .stApp { background-color: #000000; font-family: 'Inter', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
     
-    /* Título estilo Foto */
+    /* Fondo Negro */
+    .stApp {
+        background-color: #000000;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Título */
     .custom-title {
-        font-size: 3rem; font-weight: 700; color: #ffffff; 
-        text-align: center; margin-top: 2rem; margin-bottom: 3rem; line-height: 1.2;
+        font-size: 3.5rem;
+        font-weight: 600;
+        color: #ffffff;
+        text-align: center;
+        margin-top: 2rem;
+        margin-bottom: 3rem;
+        line-height: 1.1;
     }
 
-    /* Botón Descarga */
-    .stButton > button { 
-        width: 100%; font-weight: 600; border-radius: 8px; padding: 12px; 
-        background-color: #22c55e; color: white; border: none; font-size: 16px;
+    /* Uploader (Estilo Oscuro pero SIN iconos forzados) */
+    [data-testid='stFileUploader'] {
+        background-color: #111827;
+        border: 2px dashed #3f3f46;
+        border-radius: 20px;
+        padding: 20px;
+    }
+    
+    /* Botón Verde */
+    .stButton > button {
+        width: 100%;
+        background-color: #22c55e;
+        color: white;
+        border: none;
+        padding: 14px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        margin-top: 20px;
         transition: all 0.2s;
     }
-    .stButton > button:hover { background-color: #16a34a; box-shadow: 0 0 15px rgba(34, 197, 94, 0.3); }
-
-    /* Caja de texto */
+    .stButton > button:hover {
+        background-color: #16a34a;
+    }
+    
+    /* Área de Texto */
     .stTextArea textarea {
-        background-color: #1c1c1c; color: #e5e5e5; border-radius: 8px;
-        font-family: 'Georgia', serif; font-size: 15px; line-height: 1.6;
+        background-color: #1c1c1c;
+        color: #e5e5e5;
         border: 1px solid #333;
-    }
-    
-    /* Cajón de Upload (Estilo Foto) */
-    [data-testid='stFileUploader'] {
-        background-color: #111827; border: 2px dashed #3f3f46; border-radius: 16px; padding: 30px;
-    }
-    [data-testid='stFileUploader'] section > div:first-child { display: none; }
-    [data-testid='stFileUploader'] section::before {
-        content: "☁️ Arrastra tu PDF aquí"; color: #e5e5e5; font-size: 1.2rem; font-weight: 600;
-        display: block; text-align: center; margin-bottom: 10px;
-    }
-    [data-testid='stFileUploader'] section::after {
-        content: "Límite 200MB • PDF"; color: #71717a; font-size: 0.8rem;
-        display: block; text-align: center; margin-bottom: 15px;
-    }
-    
-    /* Login Box */
-    .login-container {
-        max-width: 400px; margin: 50px auto; padding: 30px;
-        background-color: #111827; border: 1px solid #374151; border-radius: 16px; text-align: center;
+        border-radius: 8px;
+        font-family: 'Georgia', serif;
     }
     
     #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. SISTEMA DE ACCESO (EL PORTERO) ---
-def check_password():
-    """Bloquea la app si no hay clave válida."""
-    if st.session_state.get("password_correct", False):
-        return True
+st.markdown('<div class="custom-title">Transforma tus PDFs<br>en texto limpio.</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="custom-title" style="font-size:2rem;">Acceso Profesional</div>', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        with st.form("login_form"):
-            password = st.text_input("Clave de Licencia", type="password", placeholder="XXXX-XXXX-XXXX")
-            submit = st.form_submit_button("ENTRAR")
-            
-            if submit:
-                # CLAVE MAESTRA: F90-ADMIN (O cualquier clave larga tipo Lemon Squeezy)
-                if password == "F90-ADMIN" or (len(password) > 8 and "-" in password):
-                    st.session_state["password_correct"] = True
-                    st.rerun()
-                else:
-                    st.error("⛔ Clave no válida")
-    return False
-
-if not check_password():
-    st.stop()
-
-# --- 3. GESTIÓN API KEY (RENDER FIX) ---
+# --- 3. GESTIÓN DE CLAVES ---
 api_key = os.environ.get("GOOGLE_API_KEY")
 if not api_key:
     try:
@@ -99,15 +82,13 @@ if not api_key:
         pass
 
 if not api_key:
-    st.error("⛔ Error: Falta la API Key. Añádela en Render > Environment.")
+    st.error("⛔ Error: Falta la API Key. Configúrala en Render.")
     st.stop()
 
-# --- 4. CEREBRO (TU LÓGICA ORIGINAL) ---
+# --- 4. LÓGICA ---
 def transcribir_con_corte(key, archivo_bytes):
     genai.configure(api_key=key)
-    
-    # Usamos el modelo Pro Latest como pediste
-    model = genai.GenerativeModel('models/gemini-pro-latest')
+    model = genai.GenerativeModel('models/gemini-1.5-pro')
     
     prompt = """
     Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura, pero SOLO LA PARTE DISPOSITIVA.
@@ -122,53 +103,48 @@ def transcribir_con_corte(key, archivo_bytes):
     INSTRUCCIONES DE LIMPIEZA:
     - Copia literal palabra por palabra hasta el punto de corte.
     - Elimina los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") que manchan el texto.
-    - Los párrafos bien separados y estructurados como en la original.
-
-    Devuelve un JSON con un solo campo:
-    {
-        "texto_cortado": "El texto literal limpio hasta antes de Protección de Datos."
-    }
+    - Los párrafos bien separados y estructurados como en la original
+    Devuelve JSON: { "texto_cortado": "Texto limpio..." }
     """
-    
     config = genai.types.GenerationConfig(temperature=0.0, response_mime_type="application/json")
-
-    response = model.generate_content(
-        [{'mime_type': 'application/pdf', 'data': archivo_bytes}, prompt],
-        generation_config=config
-    )
-    return response.text
+    try:
+        response = model.generate_content([{'mime_type': 'application/pdf', 'data': archivo_bytes}, prompt], generation_config=config)
+        return response.text
+    except Exception:
+        return None
 
 def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
-# --- 5. INTERFAZ PRINCIPAL ---
-st.markdown('<div class="custom-title">Transforma tus PDFs<br>en texto limpio.</div>', unsafe_allow_html=True)
+# --- 5. INTERFAZ ---
 
-uploaded_file = st.file_uploader(" ", type=['pdf'], label_visibility="collapsed")
+# Hemos quitado label_visibility="collapsed" para que se vea el texto nativo si quieres, 
+# o puedes poner un texto simple aquí.
+uploaded_file = st.file_uploader("Sube tu archivo PDF", type=['pdf'])
 
 if uploaded_file:
     if st.button("PROCESAR DOCUMENTO"):
-        with st.spinner('🧠 Transcribiendo...'):
+        with st.spinner('🧠 Analizando...'):
             try:
                 bytes_data = uploaded_file.read()
-                
-                # Llamada
                 resultado = transcribir_con_corte(api_key, bytes_data)
-                datos = json.loads(limpiar_json(resultado))
-                texto_final = datos.get("texto_cortado", "")
                 
-                st.success("✅ Documento Recortado y Limpio")
-                
-                # BOTÓN DE DESCARGA
-                st.download_button(
-                    label="⬇️ DESCARGAR TEXTO (.TXT)",
-                    data=texto_final,
-                    file_name="escritura_cuerpo.txt",
-                    mime="text/plain"
-                )
-                
-                # VISTA PREVIA
-                st.text_area("Vista Previa", value=texto_final, height=600, label_visibility="collapsed")
-
+                if resultado:
+                    datos = json.loads(limpiar_json(resultado))
+                    texto_final = datos.get("texto_cortado", "")
+                    
+                    if texto_final:
+                        st.success("✅ Completado")
+                        st.download_button(
+                            label="⬇️ DESCARGAR TEXTO (.TXT)",
+                            data=texto_final,
+                            file_name="escritura_limpia.txt",
+                            mime="text/plain"
+                        )
+                        st.text_area("Vista Previa", value=texto_final, height=600)
+                    else:
+                        st.warning("El documento parece vacío o ilegible.")
+                else:
+                    st.error("Error de conexión.")
             except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+                st.error(f"Error: {str(e)}")
