@@ -13,75 +13,81 @@ st.set_page_config(
 # --- FUNCIÓN DE LIMPIEZA MAESTRA (V2.0 - REGISTROS) ---
 def limpiar_texto_registral(texto_crudo):
     """
-    Elimina timbres, sellos notariales, códigos de papel y reconstruye párrafos.
+    V3.0: Limpieza agresiva de sellos incrustados en párrafos.
     """
     if not texto_crudo:
         return ""
 
-    # 1. LISTA NEGRA: Frases exactas que aparecen en los sellos y cabeceras
+    # 1. LISTA NEGRA AMPLIADA (Basada en tus pruebas)
+    # Si una línea contiene cualquiera de esto, se marca para revisión
     marcadores_basura = [
         "TIMBRE DEL ESTADO", "PAPEL EXCLUSIVO", "DOCUMENTOS NOTARIALES",
         "CLASE 8", "CLASE 6", "CLASE 4", "0,15 €", "0,03 €", "EUROS",
         "R.C.M.FN", "RCMFN", 
-        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", # Lema del sello notarial
+        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", # Lema del sello
         "NOTARIA DE", "NOTARÍA DE", "DEL ILUSTRE COLEGIO",
-        "DISTRITO NOTARIAL"
+        "DISTRITO NOTARIAL", 
+        "BOLAS OLCINA", "RESA BOLAS", # Fragmentos del nombre de tu notaria
+        "PAPEL EXCL", "DEL ESTADO", "DE DONA",
+        "QUINTANAR DE LA ORDEN" # Ojo: Esto borrará la ciudad en el sello
     ]
 
     lineas_limpias = []
     
-    # Procesamos el texto línea a línea
+    # Procesamos línea a línea
     for linea in texto_crudo.split('\n'):
         linea_upper = linea.upper().strip()
+        
+        # --- FILTRO 1: Detectar si es una línea 100% basura ---
         es_basura = False
         
-        # A) Filtro por frases prohibidas (Sellos y Timbres)
-        for marcador in marcadores_basura:
-            if marcador in linea_upper:
-                es_basura = True
-                break
+        # A) Códigos de Papel (Ej: IU1953412 o fechas solas 05/2025)
+        # Si la línea es MUY corta y tiene números/barras, fuera.
+        if len(linea) < 20 and (re.search(r'\d{2}/\d{4}', linea) or re.search(r'[A-Z]{2}\d+', linea_upper)):
+            es_basura = True
         
-        # B) Filtro por Código de Papel Notarial (Ej: IU1953412)
-        # Patrón: Empieza por 2 letras mayúsculas + 6 o más números
-        if re.search(r'^[A-Z]{2}\s*\d{6,}', linea_upper):
-            es_basura = True
+        # B) Fragmentos del sello
+        for marcador in marcadores_basura:
+            # Si el marcador está en la línea Y la línea es corta (probablemente solo sea el sello)
+            # O si el marcador es muy específico como "NIHIL"
+            if marcador in linea_upper:
+                # Estrategia: Si detectamos basura en una línea larga, intentamos quitar SOLO la basura
+                # Si es una línea corta, borramos toda la línea
+                if len(linea) < 60: 
+                    es_basura = True
+                else:
+                    # CIRUGÍA: La línea es larga (texto legal) pero tiene basura incrustada.
+                    # Reemplazamos el marcador por vacío
+                    linea = re.sub(marcador, "", linea, flags=re.IGNORECASE)
+                    # También limpiamos patrones de fecha/código sueltos en medio del texto
+                    linea = re.sub(r'\s\d{2}/\d{4}\s', " ", linea) # Quita 05/2025 en medio
+                    linea = re.sub(r'[A-Z]{2}\d{6,}', "", linea) # Quita IU1953412 en medio
 
-        # C) Filtro por Fechas aisladas de cabecera (Ej: 05/2025)
-        if re.match(r'^\d{1,2}\/\d{4}$', linea_upper):
-            es_basura = True
-            
-        # D) Filtro por Códigos alfanuméricos "huerfanos" (ruido del OCR)
-        if re.match(r'^[A-Z0-9]{5,25}$', linea_upper):
-            es_basura = True
-
-        # Si pasa todos los filtros, la guardamos
         if not es_basura:
             lineas_limpias.append(linea)
 
     texto = "\n".join(lineas_limpias)
 
-    # --- 2. PULIDO Y FORMATO (Reconstrucción de frases) ---
+    # --- 2. PULIDO Y FORMATO ---
     
-    # Quitar guiones de silabeo al final de línea (Ej: hipo- teca -> hipoteca)
+    # Quitar guiones de silabeo
     texto = re.sub(r'-\s+', '', texto) 
     
-    # Unir líneas que el OCR cortó indebidamente (Saltos de línea simples -> Espacios)
+    # Unir líneas rotas
     texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) 
     
-    # Eliminar espacios dobles o triples
+    # Eliminar espacios múltiples generados por los borrados
     texto = re.sub(r'\s+', ' ', texto)
     
-    # Arreglar puntuación que quedó pegada o separada
-    texto = re.sub(r'\s+([,.:;)])', r'\1', texto) # Quitar espacio antes de punto
-    texto = re.sub(r'(\()\s+', r'\1', texto)      # Quitar espacio tras paréntesis
-    texto = re.sub(r'\s+\/\s+', '/', texto)        # Arreglar barras 2024 / 2025
+    # Arreglar puntuación
+    texto = re.sub(r'\s+([,.:;)])', r'\1', texto)
+    texto = re.sub(r'(\()\s+', r'\1', texto)
+    texto = re.sub(r'\s+\/\s+', '/', texto)
     
-    # Detectar Puntos y Aparte reales (Punto seguido de Mayúscula)
-    # Esto devuelve la estructura de párrafos al documento
+    # Reconstruir párrafos
     texto = re.sub(r'(\.)\s+([A-ZÁÉÍÓÚÑ])', r'\1\n\n\2', texto)
 
-    # 3. RESALTAR CABECERAS JURÍDICAS
-    # Añadimos doble salto de línea antes de palabras clave
+    # Resaltar cabeceras
     titulos = ["ESCRITURA", "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN", "ESTIPULACIONES"]
     for t in titulos:
         texto = re.sub(rf'({t})', r'\n\n\1', texto)
