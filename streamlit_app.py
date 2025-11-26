@@ -160,7 +160,7 @@ def transcribir_con_corte(archivo_bytes):
         raise ValueError("Falta API Key")
         
     genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel('models/gemini-1.5-flash')
+    model = genai.GenerativeModel('models/gemini-3-pro-preview')
     
     prompt = """
     Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura, pero SOLO LA PARTE DISPOSITIVA.
