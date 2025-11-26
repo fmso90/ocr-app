@@ -4,8 +4,8 @@ import json
 
 # --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(
-    page_title="Digitalizador Registral (Versión Corta)",
-    page_icon="✂️",
+    page_title="Digitalizador Registral",
+    page_icon="📜",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
