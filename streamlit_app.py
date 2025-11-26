@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS Dark Mode (Estilo Premium)
+# CSS Dark Mode
 st.markdown("""
 <style>
     .stApp { background-color: #000000; color: #e0e0e0; }
@@ -39,36 +39,31 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LÓGICA DE LIMPIEZA V9.0 (GENÉRICA Y UNIVERSAL) ---
+# --- 2. LÓGICA DE LIMPIEZA V10.0 (GOLD MASTER) ---
 def limpiar_texto_registral(texto_crudo):
     if not texto_crudo:
         return ""
 
-    # A) PRE-PROCESADO: Despegar palabras pegadas (OCR Error)
-    # realidad.TIMBRE -> realidad. TIMBRE
+    # A) PRE-PROCESADO: Despegar palabras
     texto_crudo = re.sub(r'(\.)([A-Z])', r'\1 \2', texto_crudo)
-    # fincaTIMBRE -> finca TIMBRE
     texto_crudo = re.sub(r'([a-z])([A-Z]{3,})', r'\1 \2', texto_crudo)
 
-    # B) DEFINICIÓN DE LISTAS GENÉRICAS (Sin nombres propios)
-    
-    # 1. INMUNIDAD: Protegemos el encabezado legítimo donde se nombra al notario
+    # B) DEFINICIÓN DE LISTAS
     frases_sagradas = [
         "ANTE MÍ", "ANTE MI", 
-        "EN LA VILLA DE", "EN LA CIUDAD DE", "EN EL MUNICIPO DE",
-        "COMPARECEN", "INTERVIENEN", "OTORGAN"
+        "EN LA VILLA DE", "EN LA CIUDAD DE", "EN QUINTANAR", "EN MADRID", "EN TOLEDO"
     ]
 
-    # 2. LISTA NEGRA UNIVERSAL (Solo elementos fijos de papelería notarial)
     marcadores_basura = [
         "TIMBRE DEL ESTADO", "PAPEL EXCLUSIVO", "DOCUMENTOS NOTARIALES",
-        "CLASE 8", "CLASE 6", "CLASE 4", 
-        "0,15 €", "0,15€", "0,03 €", "0,03€", "EUROS", # Precios del timbre
-        "R.C.M.FN", "RCMFN", # Casa de la Moneda
-        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", "1NIHIL", # Lema latín
-        "NOTARIA DE", "NOTARÍA DE", # Texto del anillo del sello
-        "DEL ILUSTRE COLEGIO", "COLEGIO NOTARIAL",
-        "DISTRITO DE", "DISTRITO NOTARIAL"
+        "CLASE 8", "CLASE 6", "CLASE 4", "0,15 €", "0,03 €", "EUROS",
+        "R.C.M.FN", "RCMFN", 
+        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", "1NIHIL", 
+        "IU1953", "TU1953",
+        "OLCINA NOTARIA", "OLCINA LA ORDEN", 
+        "RESA BOLAS", "QUINTANARDEL", "QUINTANARDELA", "RDEN (TOLEDO)", "DEN TOLEDO",
+        "DE DONA M", "DE DONA", "DONA M", 
+        "NOTARIA DE", "PARA DE DONA", "ESA BOLAS" # Nuevos fragmentos detectados
     ]
 
     lineas_limpias = []
@@ -77,76 +72,65 @@ def limpiar_texto_registral(texto_crudo):
         linea_strip = linea.strip()
         linea_upper = linea.upper()
         
-        # --- FILTRO 1: INMUNIDAD ---
+        # 1. Inmunidad
         es_linea_sagrada = False
-        # Si la línea es corta (menos de 120 caracteres) y empieza por "EN ..." o tiene "ANTE MI"
-        # La protegemos para no borrar el nombre del notario real del texto.
-        if len(linea_strip) < 120: 
-            if re.search(r'\bEN\s+[A-ZÁÉÍÓÚÑ\s]+,', linea_upper) or "ANTE MÍ" in linea_upper or "ANTE MI" in linea_upper:
+        if len(linea_strip) < 100:
+            if linea_upper.startswith("EN ") or "ANTE MÍ" in linea_upper:
                 es_linea_sagrada = True
         
         if es_linea_sagrada:
-            # Solo limpiamos el código de papel si aparece al final
-            linea = re.sub(r'[A-Z]{2}\d{6,}.*', '', linea) 
             lineas_limpias.append(linea)
             continue 
 
-        # --- FILTRO 2: LIMPIEZA QUIRÚRGICA ---
+        # 2. Limpieza Quirúrgica
         linea_procesada = linea
-        
-        # 1. Borrar frases exactas de basura
         for marcador in marcadores_basura:
             linea_procesada = re.sub(re.escape(marcador), "", linea_procesada, flags=re.IGNORECASE)
         
-        # 2. BORRADO DE CÓDIGOS UNIVERSALES (REGEX)
-        # Borra códigos tipo IU1953411, IM5241499, AB123456 (2 letras + 6-12 dígitos)
-        linea_procesada = re.sub(r'\s[A-Z]{2}\s*\d{6,}', "", linea_procesada)
-        # Borra códigos si están pegados al principio o final
-        linea_procesada = re.sub(r'\b[A-Z]{2}\d{6,}\b', "", linea_procesada)
-        
-        # 3. Borrar Fechas sueltas de cabecera (MM/YYYY)
-        linea_procesada = re.sub(r'\s\d{2}/\d{4}', "", linea_procesada)    
+        # Limpieza de patrones sueltos
+        linea_procesada = re.sub(r'\s[A-Z]{2}\d{6,}', "", linea_procesada)
+        # Regex mejorado para fechas sueltas (05/2025)
+        linea_procesada = re.sub(r'\b\d{2}/\d{4}\b', "", linea_procesada) 
 
-        # --- FILTRO 3: VALIDACIÓN FINAL ---
-        # Si tras borrar la basura, la línea queda vacía o con 1-2 letras, la descartamos.
-        # Esto elimina líneas que solo contenían el nombre del notario del sello (ej: "D. PEDRO")
-        if len(linea_procesada.strip()) > 3:
-            # Limpiar espacios dobles
+        # 3. FILTRO EXTRA "FRANCOTIRADOR"
+        # Si la línea contiene una secuencia larga de mayúsculas sin sentido (residuo de sello)
+        # Ej: "PAPEL EXCL DONA M PRIUS"
+        # Borramos palabras de 2-4 letras mayúsculas consecutivas que no sean DNI
+        if len(linea_procesada) > 200: # Solo aplicamos en párrafos largos para no romper nombres
+             linea_procesada = re.sub(r'\b(PRIUS|FIDE|DONA|RESA|BOLAS|OLCINA)\b', "", linea_procesada, flags=re.IGNORECASE)
+
+        # 4. Guardar
+        if len(linea_procesada.strip()) > 2:
             linea_procesada = re.sub(r'\s+', ' ', linea_procesada).strip()
             lineas_limpias.append(linea_procesada)
 
     texto = "\n".join(lineas_limpias)
 
-    # C) PULIDO Y UNIÓN (REPARACIÓN DE DNI Y PÁRRAFOS)
-    
+    # C) PULIDO FINAL
     texto = re.sub(r'-\s+', '', texto) 
-    texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) # Unir líneas simples
+    texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) 
     texto = re.sub(r'\s+', ' ', texto)
     texto = re.sub(r'\s+([,.:;)])', r'\1', texto)
     texto = re.sub(r'(\()\s+', r'\1', texto)
     texto = re.sub(r'\s+\/\s+', '/', texto)
     
-    # Reparación de DNI (Une D. N. I. y N. I. F.)
+    # DNI FIX
     texto = re.sub(r'D\.\s*N\.\s*I\.', 'D.N.I.', texto, flags=re.IGNORECASE)
     texto = re.sub(r'N\.\s*I\.\s*F\.', 'N.I.F.', texto, flags=re.IGNORECASE)
-    # Patrón general de siglas: L. L. L. -> L.L.L.
     texto = re.sub(r'([A-Z])\.\s+([A-Z])\.', r'\1.\2.', texto)
 
-    # Reconstrucción de Párrafos (Evitando romper D.N.I.)
-    # Salto de línea solo si hay punto y NO hay mayúscula delante
+    # Párrafos
     texto = re.sub(r'(?<![A-Z])\.\s+([A-ZÁÉÍÓÚÑ])', r'.\n\n\1', texto)
-    
-    # Estética: Don/Doña
     texto = re.sub(r'\bD\.\n\n', 'D. ', texto)
 
-    # Resaltado de Cabeceras
+    # Cabeceras
     titulos = ["ESCRITURA", "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN", "ESTIPULACIONES"]
     for t in titulos:
         texto = re.sub(rf'({t})', r'\n\n\1', texto)
 
     return texto.strip()
 
-# --- 3. CONEXIÓN GOOGLE VISION ---
+# --- 3. CONEXIÓN GOOGLE ---
 def procesar_con_api_key(content_bytes, api_key):
     try:
         b64_content = base64.b64encode(content_bytes).decode('utf-8')
@@ -194,7 +178,7 @@ if uploaded_file:
             raw = uploaded_file.read()
             bar.progress(60, "OCR Google...")
             sucio = procesar_con_api_key(raw, st.secrets["GOOGLE_API_KEY"])
-            bar.progress(80, "Limpieza Universal...")
+            bar.progress(80, "Limpieza Final...")
             limpio = limpiar_texto_registral(sucio)
             bar.progress(100, "Listo")
             bar.empty()
