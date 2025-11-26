@@ -48,7 +48,7 @@ def transcribir_con_corte(api_key, archivo_bytes):
     genai.configure(api_key=api_key)
     
     # Usamos el modelo Pro para asegurar que entiende la instrucción de parada
-    model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
+    model = genai.GenerativeModel('models/gemini-pro-latest')
     
     prompt = """
     Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura, pero SOLO LA PARTE DISPOSITIVA.
