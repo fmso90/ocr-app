@@ -86,8 +86,8 @@ def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
 # --- 3. INTERFAZ ---
-st.title("DIGITALIZADOR | SOLO CUERPO")
-st.markdown("#### Transcripción Literal (Corta antes de Prot. Datos)")
+st.title("DIGITALIZADOR REGISTRAL 📚")
+st.markdown("#### Transcripción Literal de documentos")
 
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("⛔ Falta API Key en Secrets.")
@@ -98,7 +98,7 @@ st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file:
     if st.button("PROCESAR DOCUMENTO"):
-        with st.spinner('✂️ Leyendo y recortando anexos...'):
+        with st.spinner('🧠 Transcribiendo'):
             try:
                 bytes_data = uploaded_file.read()
                 
