@@ -65,15 +65,20 @@ def transcribir_con_corte(key, archivo_bytes):
     model = genai.GenerativeModel('models/gemini-pro-latest')
     
     prompt = """
-    Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura.
-    INSTRUCCIONES:
-    1. Comienza desde el principio.
-    2. DETENTE antes de "PROTECCIÓN DE DATOS".
-    3. NO transcribas nada posterior.
-    4. Elimina sellos ("TIMBRE", "NIHIL PRIUS").
-    5. Copia literal palabra por palabra.
-    Devuelve JSON: { "texto_cortado": "Texto limpio..." }
-    """
+    Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura, pero SOLO LA PARTE DISPOSITIVA.
+
+    INSTRUCCIONES DE CORTE (CRÍTICO):
+    1. Comienza a transcribir desde el principio del documento.
+    2. DETENTE INMEDIATAMENTE antes de llegar a la cláusula titulada "PROTECCIÓN DE DATOS" (o "DATOS PERSONALES").
+    3. NO transcribas la cláusula de protección de datos.
+    4. NO transcribas nada de lo que venga después (ni el Otorgamiento, ni Firmas, ni Anexos, ni Documentos Unidos).
+    5. ¡IGNORA TODO EL RESTO DEL PDF A PARTIR DE ESE PUNTO!
+
+    INSTRUCCIONES DE LIMPIEZA:
+    - Copia literal palabra por palabra hasta el punto de corte.
+    - Elimina los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") que manchan el texto.
+    - Los párrafos bien separados y estructurados como en la original    """
+    
     config = genai.types.GenerationConfig(temperature=0.0, response_mime_type="application/json")
     try:
         response = model.generate_content([{'mime_type': 'application/pdf', 'data': archivo_bytes}, prompt], generation_config=config)
