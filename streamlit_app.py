@@ -39,31 +39,40 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LÓGICA DE LIMPIEZA V10.0 (GOLD MASTER) ---
+# --- 2. LÓGICA DE LIMPIEZA V12.0 (SEGURIDAD JURÍDICA MÁXIMA) ---
 def limpiar_texto_registral(texto_crudo):
     if not texto_crudo:
         return ""
 
-    # A) PRE-PROCESADO: Despegar palabras
+    # A) PRE-PROCESADO: Despegar palabras pegadas (OCR Error)
+    # realidad.TIMBRE -> realidad. TIMBRE
     texto_crudo = re.sub(r'(\.)([A-Z])', r'\1 \2', texto_crudo)
+    # fincaTIMBRE -> finca TIMBRE
     texto_crudo = re.sub(r'([a-z])([A-Z]{3,})', r'\1 \2', texto_crudo)
 
-    # B) DEFINICIÓN DE LISTAS
-    frases_sagradas = [
-        "ANTE MÍ", "ANTE MI", 
-        "EN LA VILLA DE", "EN LA CIUDAD DE", "EN QUINTANAR", "EN MADRID", "EN TOLEDO"
+    # B) DEFINICIÓN DE LISTAS (SANEADAS: SIN NOMBRES NI LUGARES)
+    
+    # 1. Palabras Tóxicas TÉCNICAS (Solo basura universal)
+    # Eliminados: OLCINA, BOLAS, QUINTANAR, TOLEDO, etc.
+    palabras_toxicas = [
+        "TIMBRE", "PRIUS", "NIHIL", "FIDE", "IHIL", "1NIHIL", 
+        "RCMFN", "R.C.M.FN", "EUROS", "CLASE", 
+        "PAPEL", "EXCL", "EXCLUSIVO", 
+        "DOCUMENTOS", "NOTARIALES"
     ]
 
-    marcadores_basura = [
-        "TIMBRE DEL ESTADO", "PAPEL EXCLUSIVO", "DOCUMENTOS NOTARIALES",
-        "CLASE 8", "CLASE 6", "CLASE 4", "0,15 €", "0,03 €", "EUROS",
-        "R.C.M.FN", "RCMFN", 
-        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", "1NIHIL", 
-        "IU1953", "TU1953",
-        "OLCINA NOTARIA", "OLCINA LA ORDEN", 
-        "RESA BOLAS", "QUINTANARDEL", "QUINTANARDELA", "RDEN (TOLEDO)", "DEN TOLEDO",
-        "DE DONA M", "DE DONA", "DONA M", 
-        "NOTARIA DE", "PARA DE DONA", "ESA BOLAS" # Nuevos fragmentos detectados
+    # 2. Frases Basura Completas
+    frases_basura = [
+        "TIMBRE DEL ESTADO", "DOCUMENTOS NOTARIALES",
+        "0,15 €", "0,03 €", "NOTARIA DE", "NOTARÍA DE",
+        "DEL ILUSTRE COLEGIO", "DISTRITO NOTARIAL"
+    ]
+
+    # 3. Inmunidad (Para proteger encabezados)
+    frases_sagradas = [
+        "ANTE MÍ", "ANTE MI", 
+        "EN LA VILLA DE", "EN LA CIUDAD DE", 
+        "COMPARECEN", "INTERVIENEN", "OTORGAN"
     ]
 
     lineas_limpias = []
@@ -72,41 +81,50 @@ def limpiar_texto_registral(texto_crudo):
         linea_strip = linea.strip()
         linea_upper = linea.upper()
         
-        # 1. Inmunidad
+        # --- PASO 1: PROTECCIÓN ---
         es_linea_sagrada = False
-        if len(linea_strip) < 100:
-            if linea_upper.startswith("EN ") or "ANTE MÍ" in linea_upper:
+        # Si la línea es corta (cabecera) y tiene palabras clave de inicio, no la tocamos.
+        if len(linea_strip) < 120:
+            # Detecta "EN [LUGAR]" o "ANTE MI"
+            if re.search(r'\bEN\s+[A-ZÁÉÍÓÚÑ\s]+,', linea_upper) or "ANTE MÍ" in linea_upper or "ANTE MI" in linea_upper:
                 es_linea_sagrada = True
         
         if es_linea_sagrada:
             lineas_limpias.append(linea)
             continue 
 
-        # 2. Limpieza Quirúrgica
+        # --- PASO 2: LIMPIEZA SEGURA ---
         linea_procesada = linea
-        for marcador in marcadores_basura:
-            linea_procesada = re.sub(re.escape(marcador), "", linea_procesada, flags=re.IGNORECASE)
         
-        # Limpieza de patrones sueltos
-        linea_procesada = re.sub(r'\s[A-Z]{2}\d{6,}', "", linea_procesada)
-        # Regex mejorado para fechas sueltas (05/2025)
-        linea_procesada = re.sub(r'\b\d{2}/\d{4}\b', "", linea_procesada) 
+        # 1. Borrar frases técnicas completas
+        for frase in frases_basura:
+            linea_procesada = re.sub(re.escape(frase), "", linea_procesada, flags=re.IGNORECASE)
 
-        # 3. FILTRO EXTRA "FRANCOTIRADOR"
-        # Si la línea contiene una secuencia larga de mayúsculas sin sentido (residuo de sello)
-        # Ej: "PAPEL EXCL DONA M PRIUS"
-        # Borramos palabras de 2-4 letras mayúsculas consecutivas que no sean DNI
-        if len(linea_procesada) > 200: # Solo aplicamos en párrafos largos para no romper nombres
-             linea_procesada = re.sub(r'\b(PRIUS|FIDE|DONA|RESA|BOLAS|OLCINA)\b', "", linea_procesada, flags=re.IGNORECASE)
+        # 2. Borrar palabras tóxicas TÉCNICAS sueltas
+        for palabra in palabras_toxicas:
+            # Solo borramos la palabra exacta (con \b)
+            linea_procesada = re.sub(r'\b' + re.escape(palabra) + r'\b', "", linea_procesada, flags=re.IGNORECASE)
+        
+        # 3. Borrar Códigos de Papel Universales (2 Letras + 6-12 Números)
+        # Esto borra IU1953411, TU123456, AB000000... Sea cual sea la letra.
+        linea_procesada = re.sub(r'\b[A-Z]{2}\d{6,}\b', "", linea_procesada)
+        
+        # 4. Borrar Fechas sueltas (MM/YYYY)
+        linea_procesada = re.sub(r'\b\d{2}/\d{4}\b', "", linea_procesada)
 
-        # 4. Guardar
-        if len(linea_procesada.strip()) > 2:
-            linea_procesada = re.sub(r'\s+', ' ', linea_procesada).strip()
+        # 5. Borrar números de página sueltos (si son de 3 cifras y parecen basura)
+        # Solo si están aislados
+        linea_procesada = re.sub(r'\s\d{3}\s', " ", linea_procesada)
+
+        # --- PASO 3: GUARDADO ---
+        linea_procesada = re.sub(r'\s+', ' ', linea_procesada).strip()
+        
+        if len(linea_procesada) > 2:
             lineas_limpias.append(linea_procesada)
 
     texto = "\n".join(lineas_limpias)
 
-    # C) PULIDO FINAL
+    # C) PULIDO FINAL (Unión y DNI)
     texto = re.sub(r'-\s+', '', texto) 
     texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) 
     texto = re.sub(r'\s+', ' ', texto)
@@ -178,7 +196,7 @@ if uploaded_file:
             raw = uploaded_file.read()
             bar.progress(60, "OCR Google...")
             sucio = procesar_con_api_key(raw, st.secrets["GOOGLE_API_KEY"])
-            bar.progress(80, "Limpieza Final...")
+            bar.progress(80, "Limpieza Segura...")
             limpio = limpiar_texto_registral(sucio)
             bar.progress(100, "Listo")
             bar.empty()
