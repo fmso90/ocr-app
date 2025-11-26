@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import json
 
-# --- 1. CONFIGURACIÓN VISUAL PREMIUM ---
+# --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(
     page_title="Digitalizador Registral Pro",
     page_icon="🏛️",
@@ -10,99 +10,81 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS PARA DISEÑO DE DOCUMENTO
 st.markdown("""
 <style>
-    /* Fondo General Oscuro */
+    /* Fondo oscuro */
     .stApp { background-color: #0e1117; }
     
-    /* Estilo Tarjeta de Datos (Resumen) */
-    .resumen-card {
+    /* Tarjeta verde para listado de fincas */
+    .finca-card {
         background-color: #1e2329;
-        border-left: 4px solid #4ade80;
+        border-left: 5px solid #10b981;
         padding: 15px;
         margin-bottom: 10px;
-        border-radius: 4px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        border-radius: 6px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
     
-    /* Estilo "Papel" para Texto Literal */
+    /* Papel virtual para textos literales */
     .doc-paper {
-        background-color: #fdfbf7; /* Color hueso suave */
-        color: #1f1f1f; /* Texto oscuro para contraste */
+        background-color: #fdfbf7;
+        color: #1f1f1f;
         padding: 25px;
         border-radius: 4px;
-        border: 1px solid #ccc;
-        font-family: 'Georgia', serif; /* Fuente tipo legal */
+        font-family: 'Georgia', serif;
         font-size: 15px;
         line-height: 1.6;
-        white-space: pre-wrap; /* Respetar saltos de línea */
-        max-height: 400px;
+        white-space: pre-wrap;
+        max-height: 500px;
         overflow-y: auto;
-        box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+        border: 1px solid #ccc;
     }
 
-    /* Títulos */
+    /* Títulos y botones */
     h1, h2, h3 { color: #ffffff !important; font-family: 'Helvetica Neue', sans-serif; }
+    .stButton > button { width: 100%; font-weight: bold; border-radius: 6px; padding: 0.6rem; }
     
-    /* Botones */
-    .stButton > button {
-        width: 100%;
-        border-radius: 6px;
-        font-weight: 600;
-    }
-    
-    /* Ocultar elementos extra */
     #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. GESTOR DE MODELOS ---
-def obtener_modelos_disponibles(api_key):
+# --- 2. LÓGICA INTELIGENTE ---
+def transcribir_y_extraer(api_key, archivo_bytes):
     genai.configure(api_key=api_key)
-    modelos_prioritarios = [
-        "models/gemini-pro-latest", # El que te ha funcionado bien
-        "models/gemini-1.5-pro",
-        "models/gemini-1.5-pro-002",
-        "models/gemini-1.5-flash"
-    ]
-    return modelos_prioritarios
-
-# --- 3. CEREBRO DE EXTRACCIÓN ---
-def transcribir_y_resumir(api_key, nombre_modelo, archivo_bytes):
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(nombre_modelo)
+    
+    # USAMOS DIRECTAMENTE EL MODELO MÁS POTENTE Y ACTUAL
+    model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
     
     prompt = """
-    Actúa como Oficial de Registro. Tu misión es doble: 
-    1. TRANSCRIBIR LITERALMENTE las descripciones.
-    2. EXTRAER un LISTADO RESUMEN de las fincas.
+    Actúa como Oficial de Registro. Tu misión es DIGITALIZAR esta escritura.
 
-    INSTRUCCIONES DE LIMPIEZA:
-    - Elimina SOLO la "basura" visual (sellos, timbres, encabezados repetitivos).
-    - NO corrijas ortografía. NO uses viñetas en los literales.
+    1. TRANSCRIPCIÓN LITERAL:
+       - Copia el texto palabra por palabra.
+       - ELIMINA SOLO la "basura" de los sellos (timbres, precios, lemas en latín) que interrumpe las frases.
+       - NO borres nombres de notarios ni lugares si son parte del texto legal.
 
-    Devuelve un JSON con esta estructura exacta:
+    2. EXTRACCIÓN ESTRUCTURADA:
+       - Genera un listado resumen de las fincas.
+
+    Devuelve un JSON exacto con:
     {
-        "intervinientes_literal": "Texto literal completo del bloque de comparecencia.",
+        "texto_completo_limpio": "El texto ÍNTEGRO de todo el documento unido, sin sellos.",
         
-        "listado_fincas_resumen": [
+        "listado_fincas": [
             {
-                "id": "1", 
                 "registro": "Nº Finca Registral", 
                 "municipio": "Municipio", 
-                "precio": "Valor o Precio (solo el número y moneda, ej: 345 euros). Si no consta, pon 'Sin valoración'."
+                "precio": "Valor (con moneda) o 'Sin valoración'"
             }
         ],
         
-        "descripcion_fincas_literal": "Texto literal completo de la descripción de TODAS las fincas, una tras otra separadas por doble salto de línea.",
-        
-        "texto_completo_limpio": "El texto íntegro del documento unido y limpio."
+        "intervinientes_literal": "Texto literal del bloque de comparecencia.",
+        "fincas_literal": "Texto literal de la descripción de las fincas."
     }
     """
     
     config = genai.types.GenerationConfig(
-        temperature=0.0, # Cero creatividad
+        temperature=0.0, # Cero invención
         response_mime_type="application/json"
     )
 
@@ -115,86 +97,89 @@ def transcribir_y_resumir(api_key, nombre_modelo, archivo_bytes):
 def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
-# --- 4. INTERFAZ ---
-st.title("DIGITALIZADOR REGISTRAL")
+# --- 3. INTERFAZ ---
+st.title("DIGITALIZADOR REGISTRAL | PRO")
 
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("⛔ Falta API Key en Secrets.")
     st.stop()
 
-# Selector de modelo
-lista_modelos = obtener_modelos_disponibles(st.secrets["GOOGLE_API_KEY"])
-modelo_elegido = st.selectbox("Motor IA:", lista_modelos, index=0)
-
-uploaded_file = st.file_uploader("Sube escritura (PDF)", type=['pdf'])
+uploaded_file = st.file_uploader("Sube la escritura (PDF)", type=['pdf'])
 st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file:
     if st.button("PROCESAR DOCUMENTO"):
-        with st.spinner('🏗️ Extrayendo datos y limpiando texto...'):
+        with st.spinner('🧠 Gemini Pro está leyendo y estructurando el documento...'):
             try:
                 bytes_data = uploaded_file.read()
-                resultado = transcribir_y_resumir(st.secrets["GOOGLE_API_KEY"], modelo_elegido, bytes_data)
+                
+                # Llamada directa al modelo hardcodeado
+                resultado = transcribir_y_extraer(st.secrets["GOOGLE_API_KEY"], bytes_data)
                 datos = json.loads(limpiar_json(resultado))
                 
-                st.success("✅ Documento Digitalizado")
+                st.success("✅ Proceso Terminado")
                 
-                # --- SECCIÓN 1: TEXTO COMPLETO (DESCARGA) ---
-                st.markdown("### 1. Documento Completo")
-                st.download_button(
-                    label="⬇️ DESCARGAR TEXTO ÍNTEGRO LIMPIO (.TXT)",
-                    data=datos.get("texto_completo_limpio", ""),
-                    file_name="escritura_completa.txt",
-                    mime="text/plain",
-                    key="btn_full"
-                )
+                # --- A. DESCARGA COMPLETA (PRIORIDAD) ---
+                st.subheader("📂 Documento Completo")
+                texto_full = datos.get("texto_completo_limpio", "")
                 
+                col_dl, col_view = st.columns([1, 3])
+                with col_dl:
+                    st.download_button(
+                        label="⬇️ DESCARGAR TXT COMPLETO",
+                        data=texto_full,
+                        file_name="escritura_completa.txt",
+                        mime="text/plain",
+                        type="primary" # Botón destacado
+                    )
+                with col_view:
+                    with st.expander("Vista previa del texto completo"):
+                        st.text_area("Full Text", value=texto_full, height=200)
+
                 st.markdown("---")
 
-                # --- SECCIÓN 2: LISTADO RESUMEN (VISUAL + DESCARGA) ---
-                st.markdown("### 2. Listado Resumen de Fincas")
+                # --- B. LISTADO DE FINCAS (TU FORMATO) ---
+                st.subheader("🏡 Listado de Fincas")
                 
-                # Crear texto formateado para el listado
-                texto_listado = ""
-                listado = datos.get("listado_fincas_resumen", [])
+                lista_fincas = datos.get("listado_fincas", [])
+                txt_listado = ""
                 
-                if listado:
-                    for f in listado:
-                        linea = f"Finca {f.get('registro', '?')} de {f.get('municipio', '?')}, {f.get('precio', '0')}."
-                        texto_listado += linea + "\n"
-                        # Visualización en tarjetas
+                if lista_fincas:
+                    # Generar string para descarga y mostrar tarjetas
+                    for f in lista_fincas:
+                        # Formato visual
                         st.markdown(f"""
-                        <div class='resumen-card'>
-                            <b>🏡 Finca Registral:</b> {f.get('registro', '?')} <br>
-                            <b>📍 Municipio:</b> {f.get('municipio', '?')} <br>
-                            <b>💰 Valoración:</b> {f.get('precio', '?')}
+                        <div class='finca-card'>
+                            <span style='float:right; color:#4ade80; font-weight:bold'>{f.get('precio', '0')}</span>
+                            <b>Finca {f.get('registro', '?')}</b> de {f.get('municipio', '?')}
                         </div>
                         """, unsafe_allow_html=True)
+                        
+                        # Formato texto para el archivo: "1-3456 de Almadén, 345 euros"
+                        txt_listado += f"{f.get('registro', '?')} de {f.get('municipio', '?')}, {f.get('precio', '?')}.\n"
+                    
+                    st.download_button("⬇️ Descargar Listado (.txt)", txt_listado, "listado_fincas.txt")
                 else:
-                    st.warning("No se detectaron fincas estructuradas.")
-
-                st.download_button(
-                    label="⬇️ DESCARGAR LISTADO RESUMEN (.TXT)",
-                    data=texto_listado,
-                    file_name="listado_fincas.txt",
-                    mime="text/plain",
-                    key="btn_list"
-                )
+                    st.info("No se detectaron fincas en el resumen.")
 
                 st.markdown("---")
 
-                # --- SECCIÓN 3: DESCRIPCIONES LITERALES (VISUAL BONITA + DESCARGA) ---
-                col1, col2 = st.columns(2)
+                # --- C. LITERALES (INTERVINIENTES Y DESCRIPCIONES) ---
+                c1, c2 = st.columns(2)
                 
-                with col1:
-                    st.markdown("### 3. Intervinientes (Literal)")
-                    st.markdown(f"<div class='doc-paper'>{datos.get('intervinientes_literal', '')}</div>", unsafe_allow_html=True)
-                    st.download_button("⬇️ Descargar Intervinientes", datos.get("intervinientes_literal", ""), "intervinientes.txt")
+                with c1:
+                    st.subheader("👥 Intervinientes")
+                    txt_int = datos.get("intervinientes_literal", "")
+                    st.download_button("⬇️ Descargar", txt_int, "intervinientes.txt")
+                    st.markdown(f"<div class='doc-paper'>{txt_int}</div>", unsafe_allow_html=True)
 
-                with col2:
-                    st.markdown("### 4. Descripciones Fincas (Literal)")
-                    st.markdown(f"<div class='doc-paper'>{datos.get('descripcion_fincas_literal', '')}</div>", unsafe_allow_html=True)
-                    st.download_button("⬇️ Descargar Descripciones", datos.get("descripcion_fincas_literal", ""), "descripciones.txt")
+                with c2:
+                    st.subheader("📜 Descripciones")
+                    txt_desc = datos.get("fincas_literal", "")
+                    st.download_button("⬇️ Descargar", txt_desc, "descripciones_fincas.txt")
+                    st.markdown(f"<div class='doc-paper'>{txt_desc}</div>", unsafe_allow_html=True)
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
+                if "404" in str(e):
+                    st.warning("El modelo 'gemini-1.5-pro-latest' no responde. Verifica tu API Key.")
