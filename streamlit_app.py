@@ -1,208 +1,205 @@
 import streamlit as st
-import requests
-import base64
+import google.generativeai as genai
+import json
 import re
 
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="OCR Registral Pro",
-    page_icon="⚖️",
-    layout="centered",
+    page_title="Extractor Registral AI",
+    page_icon="🏘️",
+    layout="wide", # Usamos pantalla ancha para ver datos mejor
     initial_sidebar_state="collapsed"
 )
 
-# CSS Dark Mode
+# CSS Dark Mode Premium
 st.markdown("""
 <style>
-    .stApp { background-color: #000000; color: #e0e0e0; }
+    .stApp { background-color: #0e1117; color: #e0e0e0; }
     div.block-container {
-        background-color: #121212;
-        padding: 3rem;
-        border-radius: 15px;
-        border: 1px solid #333;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-        max-width: 800px;
+        max-width: 1200px;
+        padding-top: 2rem;
     }
-    h1 { color: #fff !important; font-family: 'Helvetica Neue', sans-serif; }
-    h3 { color: #a0a0a0 !important; font-weight: 400; }
+    /* Tarjetas de datos */
+    .data-card {
+        background-color: #1e1e1e;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #333;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    h1, h2, h3 { color: #fff !important; font-family: 'Helvetica Neue', sans-serif; }
+    .label { color: #888; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px; }
+    .value { color: #fff; font-size: 1.1em; font-weight: 500; margin-bottom: 10px; }
+    .highlight { color: #4ade80; font-weight: bold; }
+    
+    /* Botones */
     div.stButton > button {
         background-color: #fff; color: #000; border: none; font-weight: 700;
-        transition: all 0.3s;
+        width: 100%; padding: 0.8rem;
     }
-    div.stButton > button:hover { background-color: #ccc; box-shadow: 0 0 10px rgba(255,255,255,0.2); }
-    .stTextArea textarea {
-        background-color: #0a0a0a; border: 1px solid #333;
-        font-family: 'Courier New', monospace; color: #d1d5db;
-    }
-    [data-testid="stFileUploader"] { background-color: #1a1a1a; border: 1px dashed #555; }
+    div.stButton > button:hover { background-color: #ccc; }
+    
+    /* Ocultar elementos */
     #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LÓGICA DE LIMPIEZA V12.0 (SEGURIDAD JURÍDICA MÁXIMA) ---
-def limpiar_texto_registral(texto_crudo):
-    if not texto_crudo:
-        return ""
+# --- 2. CONFIGURACIÓN DE GEMINI ---
+def configurar_gemini(api_key):
+    genai.configure(api_key=api_key)
+    # Usamos Gemini 1.5 Flash: Rápido, barato y ventana de contexto enorme (lee todo el PDF)
+    return genai.GenerativeModel('gemini-1.5-flash')
 
-    # A) PRE-PROCESADO: Despegar palabras pegadas (OCR Error)
-    # realidad.TIMBRE -> realidad. TIMBRE
-    texto_crudo = re.sub(r'(\.)([A-Z])', r'\1 \2', texto_crudo)
-    # fincaTIMBRE -> finca TIMBRE
-    texto_crudo = re.sub(r'([a-z])([A-Z]{3,})', r'\1 \2', texto_crudo)
+def limpiar_json_markdown(texto):
+    """Limpia si la IA devuelve ```json ... ```"""
+    texto = texto.replace("```json", "").replace("```", "").strip()
+    return texto
 
-    # B) DEFINICIÓN DE LISTAS (SANEADAS: SIN NOMBRES NI LUGARES)
+# --- 3. EL CEREBRO (PROMPT DE EXTRACCIÓN) ---
+def extraer_datos_inteligentes(modelo, archivo_bytes):
     
-    # 1. Palabras Tóxicas TÉCNICAS (Solo basura universal)
-    # Eliminados: OLCINA, BOLAS, QUINTANAR, TOLEDO, etc.
-    palabras_toxicas = [
-        "TIMBRE", "PRIUS", "NIHIL", "FIDE", "IHIL", "1NIHIL", 
-        "RCMFN", "R.C.M.FN", "EUROS", "CLASE", 
-        "PAPEL", "EXCL", "EXCLUSIVO", 
-        "DOCUMENTOS", "NOTARIALES"
-    ]
+    # Instrucción Maestra para el Oficial Virtual
+    prompt = """
+    Actúa como un Oficial de Registro de la Propiedad experto. 
+    Analiza la escritura adjunta (PDF) y extrae la información clave ignorando totalmente los sellos, 
+    timbres, marcas de agua y texto administrativo irrelevante ("NIHIL PRIUS FIDE", etc.).
 
-    # 2. Frases Basura Completas
-    frases_basura = [
-        "TIMBRE DEL ESTADO", "DOCUMENTOS NOTARIALES",
-        "0,15 €", "0,03 €", "NOTARIA DE", "NOTARÍA DE",
-        "DEL ILUSTRE COLEGIO", "DISTRITO NOTARIAL"
-    ]
-
-    # 3. Inmunidad (Para proteger encabezados)
-    frases_sagradas = [
-        "ANTE MÍ", "ANTE MI", 
-        "EN LA VILLA DE", "EN LA CIUDAD DE", 
-        "COMPARECEN", "INTERVIENEN", "OTORGAN"
-    ]
-
-    lineas_limpias = []
+    Devuelve ÚNICAMENTE un objeto JSON válido con la siguiente estructura exacta:
+    {
+        "documento": {
+            "notario": "Nombre del notario",
+            "fecha": "Fecha de otorgamiento",
+            "protocolo": "Número de protocolo",
+            "ciudad": "Lugar de firma"
+        },
+        "intervinientes": [
+            {
+                "rol": "VENDEDOR o COMPRADOR",
+                "nombre": "Nombre completo",
+                "dni": "DNI/NIF",
+                "participacion": "% si se especifica"
+            }
+        ],
+        "fincas": [
+            {
+                "numero_registral": "Número finca registral",
+                "referencia_catastral": "Ref Catastral",
+                "municipio": "Municipio",
+                "descripcion_corta": "Ej: Rústica, secano, paraje La Vega...",
+                "superficie": "Superficie en m2 o Ha",
+                "linderos": "Norte..., Sur..."
+            }
+        ],
+        "cargas": "Resumen breve de cargas (Hipoteca, servidumbres) o 'Libre de cargas'"
+    }
     
-    for linea in texto_crudo.split('\n'):
-        linea_strip = linea.strip()
-        linea_upper = linea.upper()
-        
-        # --- PASO 1: PROTECCIÓN ---
-        es_linea_sagrada = False
-        # Si la línea es corta (cabecera) y tiene palabras clave de inicio, no la tocamos.
-        if len(linea_strip) < 120:
-            # Detecta "EN [LUGAR]" o "ANTE MI"
-            if re.search(r'\bEN\s+[A-ZÁÉÍÓÚÑ\s]+,', linea_upper) or "ANTE MÍ" in linea_upper or "ANTE MI" in linea_upper:
-                es_linea_sagrada = True
-        
-        if es_linea_sagrada:
-            lineas_limpias.append(linea)
-            continue 
+    Si algún dato no aparece, pon "No consta". Se preciso con los DNI y Nombres.
+    """
 
-        # --- PASO 2: LIMPIEZA SEGURA ---
-        linea_procesada = linea
-        
-        # 1. Borrar frases técnicas completas
-        for frase in frases_basura:
-            linea_procesada = re.sub(re.escape(frase), "", linea_procesada, flags=re.IGNORECASE)
-
-        # 2. Borrar palabras tóxicas TÉCNICAS sueltas
-        for palabra in palabras_toxicas:
-            # Solo borramos la palabra exacta (con \b)
-            linea_procesada = re.sub(r'\b' + re.escape(palabra) + r'\b', "", linea_procesada, flags=re.IGNORECASE)
-        
-        # 3. Borrar Códigos de Papel Universales (2 Letras + 6-12 Números)
-        # Esto borra IU1953411, TU123456, AB000000... Sea cual sea la letra.
-        linea_procesada = re.sub(r'\b[A-Z]{2}\d{6,}\b', "", linea_procesada)
-        
-        # 4. Borrar Fechas sueltas (MM/YYYY)
-        linea_procesada = re.sub(r'\b\d{2}/\d{4}\b', "", linea_procesada)
-
-        # 5. Borrar números de página sueltos (si son de 3 cifras y parecen basura)
-        # Solo si están aislados
-        linea_procesada = re.sub(r'\s\d{3}\s', " ", linea_procesada)
-
-        # --- PASO 3: GUARDADO ---
-        linea_procesada = re.sub(r'\s+', ' ', linea_procesada).strip()
-        
-        if len(linea_procesada) > 2:
-            lineas_limpias.append(linea_procesada)
-
-    texto = "\n".join(lineas_limpias)
-
-    # C) PULIDO FINAL (Unión y DNI)
-    texto = re.sub(r'-\s+', '', texto) 
-    texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) 
-    texto = re.sub(r'\s+', ' ', texto)
-    texto = re.sub(r'\s+([,.:;)])', r'\1', texto)
-    texto = re.sub(r'(\()\s+', r'\1', texto)
-    texto = re.sub(r'\s+\/\s+', '/', texto)
-    
-    # DNI FIX
-    texto = re.sub(r'D\.\s*N\.\s*I\.', 'D.N.I.', texto, flags=re.IGNORECASE)
-    texto = re.sub(r'N\.\s*I\.\s*F\.', 'N.I.F.', texto, flags=re.IGNORECASE)
-    texto = re.sub(r'([A-Z])\.\s+([A-Z])\.', r'\1.\2.', texto)
-
-    # Párrafos
-    texto = re.sub(r'(?<![A-Z])\.\s+([A-ZÁÉÍÓÚÑ])', r'.\n\n\1', texto)
-    texto = re.sub(r'\bD\.\n\n', 'D. ', texto)
-
-    # Cabeceras
-    titulos = ["ESCRITURA", "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN", "ESTIPULACIONES"]
-    for t in titulos:
-        texto = re.sub(rf'({t})', r'\n\n\1', texto)
-
-    return texto.strip()
-
-# --- 3. CONEXIÓN GOOGLE ---
-def procesar_con_api_key(content_bytes, api_key):
+    # Enviamos el PDF (bytes) y el texto (prompt) a la vez
     try:
-        b64_content = base64.b64encode(content_bytes).decode('utf-8')
-        url = f"https://vision.googleapis.com/v1/files:annotate?key={api_key}"
-        
-        payload = {
-            "requests": [{
-                "inputConfig": { "content": b64_content, "mimeType": "application/pdf" },
-                "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
-                "pages": [1, 2, 3, 4, 5] 
-            }]
-        }
+        # Gemini soporta bytes de PDF directamente como 'mime_type': 'application/pdf'
+        response = modelo.generate_content([
+            {'mime_type': 'application/pdf', 'data': archivo_bytes},
+            prompt
+        ])
+        return response.text
+    except Exception as e:
+        return None
 
-        response = requests.post(url, json=payload)
-        if response.status_code != 200: return f"Error Google: {response.text}"
-        
-        data = response.json()
-        texto_total = ""
-        responses = data.get('responses', [])
-        if responses:
-            for pagina in responses[0].get('responses', []):
-                full_text = pagina.get('fullTextAnnotation', {}).get('text', '')
-                if full_text: texto_total += full_text + "\n"
-        
-        return texto_total if texto_total else "⚠️ No se detectó texto."
+# --- 4. INTERFAZ GRÁFICA ---
 
-    except Exception as e: return f"Error: {e}"
-
-# --- 4. INTERFAZ ---
-st.title("OCR REGISTRAL")
-st.markdown("### Procesamiento Seguro de Escrituras")
+st.title("EXTRACTOR DE DATOS REGISTRAL")
+st.markdown("### 🤖 Análisis Inteligente de Escrituras con Gemini AI")
 
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("⛔ Falta API Key en Secrets.")
+    st.error("⛔ Falta API Key de Google en Secrets.")
     st.stop()
 
+model = configurar_gemini(st.secrets["GOOGLE_API_KEY"])
+
 uploaded_file = st.file_uploader("Sube escritura (PDF)", type=['pdf'])
+
 st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file:
-    if st.button("PROCESAR DOCUMENTO"):
-        bar = st.progress(0, "Iniciando...")
-        try:
-            bar.progress(30, "Leyendo...")
-            raw = uploaded_file.read()
-            bar.progress(60, "OCR Google...")
-            sucio = procesar_con_api_key(raw, st.secrets["GOOGLE_API_KEY"])
-            bar.progress(80, "Limpieza Segura...")
-            limpio = limpiar_texto_registral(sucio)
-            bar.progress(100, "Listo")
-            bar.empty()
-            
-            st.success("✅ Procesado correctamente")
-            st.text_area("Resultado:", value=limpio, height=600)
-            st.download_button("⬇️ DESCARGAR TXT", limpio, "escritura.txt")
-        except Exception as e:
-            st.error(f"Error: {e}")
+    if st.button("EXTRAER DATOS ESTRUCTURADOS"):
+        with st.spinner('🧠 La IA está leyendo y analizando la escritura...'):
+            try:
+                bytes_data = uploaded_file.read()
+                
+                # Llamada a la IA
+                resultado_crudo = extraer_datos_inteligentes(model, bytes_data)
+                
+                if resultado_crudo:
+                    # Parsear JSON
+                    json_str = limpiar_json_markdown(resultado_crudo)
+                    datos = json.loads(json_str)
+                    
+                    st.success("✅ Extracción Completada")
+                    
+                    # --- MOSTRAR DATOS EN TARJETAS ---
+                    
+                    # 1. Cabecera del Documento
+                    doc = datos.get("documento", {})
+                    col1, col2, col3, col4 = st.columns(4)
+                    col1.metric("Notario", doc.get("notario", "-"))
+                    col2.metric("Fecha", doc.get("fecha", "-"))
+                    col3.metric("Protocolo", doc.get("protocolo", "-"))
+                    col4.metric("Ciudad", doc.get("ciudad", "-"))
+                    
+                    st.markdown("---")
+                    
+                    # 2. Intervinientes (Dos columnas: Vendedores / Compradores)
+                    st.subheader("👥 Intervinientes")
+                    intervinientes = datos.get("intervinientes", [])
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.markdown("<div class='data-card'><h4>VENDEDORES</h4>", unsafe_allow_html=True)
+                        for p in intervinientes:
+                            if "VENDEDOR" in p.get("rol", "").upper():
+                                st.markdown(f"**{p['nombre']}**<br><span style='color:#aaa'>{p['dni']}</span>", unsafe_allow_html=True)
+                                st.markdown("<hr style='margin:5px 0; border-color:#444'>", unsafe_allow_html=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
+
+                    with c2:
+                        st.markdown("<div class='data-card'><h4>COMPRADORES</h4>", unsafe_allow_html=True)
+                        for p in intervinientes:
+                            if "COMPRADOR" in p.get("rol", "").upper():
+                                st.markdown(f"**{p['nombre']}**<br><span style='color:#aaa'>{p['dni']}</span>", unsafe_allow_html=True)
+                                st.markdown("<hr style='margin:5px 0; border-color:#444'>", unsafe_allow_html=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    # 3. Fincas
+                    st.subheader("🏡 Fincas y Propiedades")
+                    for finca in datos.get("fincas", []):
+                        st.markdown(f"""
+                        <div class='data-card'>
+                            <div style='display:flex; justify-content:space-between;'>
+                                <div><span class='label'>REF. CATASTRAL:</span> <span class='highlight'>{finca.get('referencia_catastral')}</span></div>
+                                <div><span class='label'>Nº REGISTRAL:</span> <span class='value'>{finca.get('numero_registral')}</span></div>
+                            </div>
+                            <br>
+                            <div><span class='label'>DESCRIPCIÓN:</span><br>{finca.get('descripcion_corta')}</div>
+                            <br>
+                            <div><span class='label'>SUPERFICIE:</span> {finca.get('superficie')} | <span class='label'>MUNICIPIO:</span> {finca.get('municipio')}</div>
+                            <br>
+                            <div style='font-size:0.9em; color:#888'><i>Linderos: {finca.get('linderos')}</i></div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                    # 4. Cargas
+                    st.subheader("⚠️ Estado de Cargas")
+                    st.info(datos.get("cargas", "No consta información"))
+                    
+                    # 5. JSON Puro (Para copiar)
+                    with st.expander("Ver JSON Técnico (Para copiar a otro software)"):
+                        st.json(datos)
+
+                else:
+                    st.error("La IA no pudo procesar el documento. Intenta de nuevo.")
+
+            except Exception as e:
+                st.error(f"Error técnico: {e}")
