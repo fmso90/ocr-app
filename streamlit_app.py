@@ -1,7 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 import json
-import os 
+import os
 
 # --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(
@@ -40,9 +40,41 @@ st.markdown("""
         border: 1px solid #444;
     }
     
+    /* Estilo para el Login */
+    .login-input input {
+        background-color: #111 !important;
+        color: white !important;
+        border: 1px solid #444 !important;
+    }
+    
     #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
+
+# --- 0. SISTEMA DE ACCESO (AÑADIDO: EL PORTERO) ---
+def check_password():
+    """Pide clave antes de mostrar nada."""
+    if st.session_state.get("password_correct", False):
+        return True
+
+    st.markdown("<br><br><h3 style='text-align:center;'>🔐 Acceso Privado</h3>", unsafe_allow_html=True)
+    
+    password = st.text_input("Introduce la Clave de Acceso", type="password", key="login_input")
+    
+    if st.button("ENTRAR"):
+        # CLAVE MAESTRA: F90-ADMIN
+        # Acepta también cualquier clave larga (ej: de Lemon Squeezy)
+        if password == "F90-ADMIN" or (len(password) > 8 and "-" in password):
+            st.session_state["password_correct"] = True
+            st.rerun()
+        else:
+            st.error("⛔ Clave incorrecta")
+            
+    return False
+
+# SI NO HAY CLAVE, PARAMOS AQUÍ EL CÓDIGO
+if not check_password():
+    st.stop()
 
 # --- 2. CEREBRO CON "FRENO DE MANO" ---
 def transcribir_con_corte(api_key, archivo_bytes):
@@ -90,7 +122,7 @@ def limpiar_json(texto):
 st.title("Convierte PDF en texto listo para usar")
 st.markdown("#### Transcripción Literal de documentos")
 
-# --- AQUÍ ESTÁ EL ÚNICO CAMBIO (Soporte para Render) ---
+# --- AÑADIDO: DETECTOR DE CLAVE (RENDER + LOCAL) ---
 api_key = os.environ.get("GOOGLE_API_KEY")
 if not api_key:
     try:
@@ -99,9 +131,9 @@ if not api_key:
         pass
 
 if not api_key:
-    st.error("⛔ Falta API Key en Secrets o Variables de Entorno.")
+    st.error("⛔ Falta API Key. Añádela en Render > Environment.")
     st.stop()
-# -------------------------------------------------------
+# ---------------------------------------------------
 
 uploaded_file = st.file_uploader("Sube la escritura (PDF)", type=['pdf'])
 st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
@@ -112,7 +144,7 @@ if uploaded_file:
             try:
                 bytes_data = uploaded_file.read()
                 
-                # Llamada usando la variable api_key detectada
+                # Llamada (usando la api_key detectada arriba)
                 resultado = transcribir_con_corte(api_key, bytes_data)
                 datos = json.loads(limpiar_json(resultado))
                 texto_final = datos.get("texto_cortado", "")
