@@ -4,7 +4,7 @@ import json
 
 # --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(
-    page_title="Digitalizador Registral",
+    page_title="Digitalizador",
     page_icon="📜",
     layout="centered",
     initial_sidebar_state="collapsed"
@@ -86,7 +86,7 @@ def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
 # --- 3. INTERFAZ ---
-st.title("DIGITALIZADOR REGISTRAL 📚")
+st.title("Convierte PDF en texto listo para usar")
 st.markdown("#### Transcripción Literal de documentos")
 
 if "GOOGLE_API_KEY" not in st.secrets:
