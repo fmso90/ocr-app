@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS Dark Mode
+# CSS Dark Mode (Estilo Premium)
 st.markdown("""
 <style>
     .stApp { background-color: #000000; color: #e0e0e0; }
@@ -39,47 +39,36 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LÓGICA DE LIMPIEZA V7.0 (SIGLAS + LIMPIEZA PROFUNDA) ---
+# --- 2. LÓGICA DE LIMPIEZA V9.0 (GENÉRICA Y UNIVERSAL) ---
 def limpiar_texto_registral(texto_crudo):
     if not texto_crudo:
         return ""
 
-    # A) PRE-PROCESADO: ARREGLO DE SIGLAS (D. N. I. -> D.N.I.)
-    # Primero arreglamos los espacios entre puntos de siglas comunes
-    # Patrón: Letra + Punto + Espacio + Letra + Punto
-    texto_crudo = re.sub(r'([A-Z])\.\s+([A-Z])\.', r'\1.\2.', texto_crudo)
-    # Ejecutamos una segunda vez para casos de 3 letras (N. I. F. -> N.I.F.)
-    texto_crudo = re.sub(r'([A-Z])\.\s+([A-Z])\.', r'\1.\2.', texto_crudo)
-    
-    # Arreglo específico para DNI/NIF pegados con barras si Google falla
-    texto_crudo = re.sub(r'D\.\s*N\.\s*I\.', 'D.N.I.', texto_crudo, flags=re.IGNORECASE)
-    
-    # B) PRE-PROCESADO: DESPEGAR BASURA DEL TEXTO
-    # "realidad.TIMBRE" -> "realidad. TIMBRE"
+    # A) PRE-PROCESADO: Despegar palabras pegadas (OCR Error)
+    # realidad.TIMBRE -> realidad. TIMBRE
     texto_crudo = re.sub(r'(\.)([A-Z])', r'\1 \2', texto_crudo)
-    # "fincaTIMBRE" -> "finca TIMBRE"
+    # fincaTIMBRE -> finca TIMBRE
     texto_crudo = re.sub(r'([a-z])([A-Z]{3,})', r'\1 \2', texto_crudo)
 
-    # C) DEFINICIÓN DE LISTAS
+    # B) DEFINICIÓN DE LISTAS GENÉRICAS (Sin nombres propios)
     
-    # Inmunidad: Líneas que NO se tocan (Encabezados legales)
+    # 1. INMUNIDAD: Protegemos el encabezado legítimo donde se nombra al notario
     frases_sagradas = [
         "ANTE MÍ", "ANTE MI", 
-        "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN",
-        "EN LA VILLA DE", "EN LA CIUDAD DE", "EN " # "En Quintanar..."
+        "EN LA VILLA DE", "EN LA CIUDAD DE", "EN EL MUNICIPO DE",
+        "COMPARECEN", "INTERVIENEN", "OTORGAN"
     ]
 
-    # Lista Negra: Basura a eliminar quirúrgicamente
+    # 2. LISTA NEGRA UNIVERSAL (Solo elementos fijos de papelería notarial)
     marcadores_basura = [
         "TIMBRE DEL ESTADO", "PAPEL EXCLUSIVO", "DOCUMENTOS NOTARIALES",
-        "CLASE 8", "CLASE 6", "CLASE 4", "0,15 €", "0,03 €", "EUROS",
-        "R.C.M.FN", "RCMFN", 
-        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", "1NIHIL", 
-        "IU1953", 
-        # Fragmentos sueltos detectados en tus pruebas:
-        "RESA BOLAS", "BOLAS OLCINA", "OLCINA PAPEL", "PAPEL EXCL",
-        "QUINTANARDELA", "QUINTANARDEL", "RDEN (TOLEDO)", "DEN TOLEDO",
-        "DE DONA M", "DE DONA"
+        "CLASE 8", "CLASE 6", "CLASE 4", 
+        "0,15 €", "0,15€", "0,03 €", "0,03€", "EUROS", # Precios del timbre
+        "R.C.M.FN", "RCMFN", # Casa de la Moneda
+        "NIHIL PRIUS FIDE", "PRIUS FIDE", "NIHIL", "IHIL", "1NIHIL", # Lema latín
+        "NOTARIA DE", "NOTARÍA DE", # Texto del anillo del sello
+        "DEL ILUSTRE COLEGIO", "COLEGIO NOTARIAL",
+        "DISTRITO DE", "DISTRITO NOTARIAL"
     ]
 
     lineas_limpias = []
@@ -88,52 +77,68 @@ def limpiar_texto_registral(texto_crudo):
         linea_strip = linea.strip()
         linea_upper = linea.upper()
         
-        # 1. Chequeo de Inmunidad
+        # --- FILTRO 1: INMUNIDAD ---
         es_linea_sagrada = False
-        if linea_upper.startswith("EN ") or "ANTE MÍ" in linea_upper or "ANTE MI" in linea_upper:
-            es_linea_sagrada = True
+        # Si la línea es corta (menos de 120 caracteres) y empieza por "EN ..." o tiene "ANTE MI"
+        # La protegemos para no borrar el nombre del notario real del texto.
+        if len(linea_strip) < 120: 
+            if re.search(r'\bEN\s+[A-ZÁÉÍÓÚÑ\s]+,', linea_upper) or "ANTE MÍ" in linea_upper or "ANTE MI" in linea_upper:
+                es_linea_sagrada = True
         
         if es_linea_sagrada:
-            # Solo limpieza mínima al final de la línea sagrada
-            linea = re.sub(r'IU\d{6,}.*', '', linea) 
+            # Solo limpiamos el código de papel si aparece al final
+            linea = re.sub(r'[A-Z]{2}\d{6,}.*', '', linea) 
             lineas_limpias.append(linea)
             continue 
 
-        # 2. Limpieza Quirúrgica (Borrar basura DENTRO de la línea)
-        # Esto soluciona la línea 93: "realidad. TIMBRE DEL ESTADO..."
+        # --- FILTRO 2: LIMPIEZA QUIRÚRGICA ---
         linea_procesada = linea
+        
+        # 1. Borrar frases exactas de basura
         for marcador in marcadores_basura:
-            # Reemplazamos el marcador por vacío, ignorando mayúsculas
             linea_procesada = re.sub(re.escape(marcador), "", linea_procesada, flags=re.IGNORECASE)
         
-        # Limpieza de patrones sueltos
-        linea_procesada = re.sub(r'\s[A-Z]{2}\d{6,}', "", linea_procesada) # Códigos IU sueltos
-        linea_procesada = re.sub(r'\s\d{2}/\d{4}', "", linea_procesada)    # Fechas sueltas 05/2025
+        # 2. BORRADO DE CÓDIGOS UNIVERSALES (REGEX)
+        # Borra códigos tipo IU1953411, IM5241499, AB123456 (2 letras + 6-12 dígitos)
+        linea_procesada = re.sub(r'\s[A-Z]{2}\s*\d{6,}', "", linea_procesada)
+        # Borra códigos si están pegados al principio o final
+        linea_procesada = re.sub(r'\b[A-Z]{2}\d{6,}\b', "", linea_procesada)
+        
+        # 3. Borrar Fechas sueltas de cabecera (MM/YYYY)
+        linea_procesada = re.sub(r'\s\d{2}/\d{4}', "", linea_procesada)    
 
-        # 3. Filtro final: ¿Quedó la línea vacía o inservible?
-        if len(linea_procesada.strip()) > 2:
-            # Un último arreglo de espacios dobles creados al borrar palabras
+        # --- FILTRO 3: VALIDACIÓN FINAL ---
+        # Si tras borrar la basura, la línea queda vacía o con 1-2 letras, la descartamos.
+        # Esto elimina líneas que solo contenían el nombre del notario del sello (ej: "D. PEDRO")
+        if len(linea_procesada.strip()) > 3:
+            # Limpiar espacios dobles
             linea_procesada = re.sub(r'\s+', ' ', linea_procesada).strip()
             lineas_limpias.append(linea_procesada)
 
     texto = "\n".join(lineas_limpias)
 
-    # D) PULIDO Y FORMATO FINAL
+    # C) PULIDO Y UNIÓN (REPARACIÓN DE DNI Y PÁRRAFOS)
     
     texto = re.sub(r'-\s+', '', texto) 
-    texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) 
+    texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto) # Unir líneas simples
     texto = re.sub(r'\s+', ' ', texto)
     texto = re.sub(r'\s+([,.:;)])', r'\1', texto)
     texto = re.sub(r'(\()\s+', r'\1', texto)
     texto = re.sub(r'\s+\/\s+', '/', texto)
     
-    # RECONSTRUCCIÓN DE PÁRRAFOS (Respetando D.N.I.)
-    # Solo salta línea si hay punto Y NO está precedido por mayúscula (D.) ni seguido por número
+    # Reparación de DNI (Une D. N. I. y N. I. F.)
+    texto = re.sub(r'D\.\s*N\.\s*I\.', 'D.N.I.', texto, flags=re.IGNORECASE)
+    texto = re.sub(r'N\.\s*I\.\s*F\.', 'N.I.F.', texto, flags=re.IGNORECASE)
+    # Patrón general de siglas: L. L. L. -> L.L.L.
+    texto = re.sub(r'([A-Z])\.\s+([A-Z])\.', r'\1.\2.', texto)
+
+    # Reconstrucción de Párrafos (Evitando romper D.N.I.)
+    # Salto de línea solo si hay punto y NO hay mayúscula delante
     texto = re.sub(r'(?<![A-Z])\.\s+([A-ZÁÉÍÓÚÑ])', r'.\n\n\1', texto)
     
-    # Corrección estética para Don/Doña
+    # Estética: Don/Doña
     texto = re.sub(r'\bD\.\n\n', 'D. ', texto)
-    
+
     # Resaltado de Cabeceras
     titulos = ["ESCRITURA", "COMPARECEN", "INTERVIENEN", "EXPONEN", "OTORGAN", "ESTIPULACIONES"]
     for t in titulos:
@@ -189,7 +194,7 @@ if uploaded_file:
             raw = uploaded_file.read()
             bar.progress(60, "OCR Google...")
             sucio = procesar_con_api_key(raw, st.secrets["GOOGLE_API_KEY"])
-            bar.progress(80, "Limpieza Final...")
+            bar.progress(80, "Limpieza Universal...")
             limpio = limpiar_texto_registral(sucio)
             bar.progress(100, "Listo")
             bar.empty()
