@@ -137,11 +137,18 @@ def transcribir_con_corte(key, archivo_bytes):
     
     prompt = """
     Actúa como un Oficial de Registro. Tu misión es TRANSCRIBIR la escritura, pero SOLO LA PARTE DISPOSITIVA.
-    1. Comienza a transcribir desde el principio.
-    2. DETENTE INMEDIATAMENTE antes de "PROTECCIÓN DE DATOS".
-    3. NO transcribas nada posterior.
-    4. Elimina sellos ("TIMBRE", "NIHIL PRIUS") del texto.
-    5. Copia literal.
+
+    INSTRUCCIONES DE CORTE (CRÍTICO):
+    1. Comienza a transcribir desde el principio del documento.
+    2. DETENTE INMEDIATAMENTE antes de llegar a la cláusula titulada "PROTECCIÓN DE DATOS" (o "DATOS PERSONALES").
+    3. NO transcribas la cláusula de protección de datos.
+    4. NO transcribas nada de lo que venga después (ni el Otorgamiento, ni Firmas, ni Anexos, ni Documentos Unidos).
+    5. ¡IGNORA TODO EL RESTO DEL PDF A PARTIR DE ESE PUNTO!
+
+    INSTRUCCIONES DE LIMPIEZA:
+    - Copia literal palabra por palabra hasta el punto de corte.
+    - Elimina los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") que manchan el texto.
+    - Los párrafos bien separados y estructurados como en la original
     Devuelve JSON: { "texto_cortado": "Texto limpio..." }
     """
     config = genai.types.GenerationConfig(temperature=0.0, response_mime_type="application/json")
