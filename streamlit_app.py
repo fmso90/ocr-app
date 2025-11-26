@@ -7,8 +7,8 @@ import time
 
 # --- CONFIGURACIÓN DE PÁGINA (DISEÑO) ---
 st.set_page_config(
-    page_title="F90 | Digitalizador",
-    page_icon="📷",
+    page_title="Digitalizador",
+    page_icon="📓",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -200,7 +200,7 @@ def navigate_to(page):
 # ==========================================
 def show_landing():
     # Logo o Título super minimalista
-    st.markdown("<h4 style='text-align: left; color: #666; font-size: 0.8rem; letter-spacing: 3px;'>F90 | SERVICIOS DIGITALES</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: left; color: #666; font-size: 0.8rem; letter-spacing: 3px;'>Productividad total</h4>", unsafe_allow_html=True)
     st.write("##") # Espacio
 
     # CABECERA GRANDE
@@ -221,7 +221,7 @@ def show_landing():
 
     with col1:
         st.markdown("### 01. PRECISIÓN")
-        st.markdown("<div style='color: #888; font-size: 0.9rem;'>La IA analiza el documento legal entendiendo el contexto, no solo copiando caracteres.</div>", unsafe_allow_html=True)
+        st.markdown("<div style='color: #888; font-size: 0.9rem;'>Analiza el documento.</div>", unsafe_allow_html=True)
 
     with col2:
         st.markdown("### 02. LIMPIEZA")
@@ -235,7 +235,7 @@ def show_landing():
     st.write("##")
     
     # FOOTER SUTIL
-    st.markdown("<div style='text-align: center; color: #444; font-size: 0.7rem; letter-spacing: 2px; margin-top: 50px;'>F90FOTO © 2024 | ALMADÉN</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: #444; font-size: 0.7rem; letter-spacing: 2px; margin-top: 50px;'>Productividad Total © 2025 | ALMADÉN</div>", unsafe_allow_html=True)
 
 
 # ==========================================
@@ -257,7 +257,7 @@ def show_subscription():
         st.markdown("""
         <div class="price-card">
             <h3 style="color: #fff; font-size: 1rem; letter-spacing: 3px;">PROFESSIONAL LICENSE</h3>
-            <div class="price-amount">19,90€</div>
+            <div class="price-amount">XXXX €</div>
             <p style="color: #666; font-size: 0.8rem;">FACTURACIÓN MENSUAL</p>
             <hr style="border-color: #333; margin: 30px 0;">
             <div style="text-align: left; color: #ccc; font-size: 0.9rem; line-height: 2;">
