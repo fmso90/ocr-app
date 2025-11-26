@@ -1,138 +1,54 @@
 import streamlit as st
 import google.generativeai as genai
 import json
-import os
+import os 
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
+# --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(
-    page_title="F90 OCR",
-    page_icon="🔒",
+    page_title="Digitalizador",
+    page_icon="📜",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. ESTILO DARK TECH (CSS) ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    .stApp { background-color: #0e1117; }
+    h1, h2, h3, h4 { color: #ffffff !important; font-family: 'Helvetica Neue', sans-serif; text-align: center; }
     
-    /* Fondo Negro */
-    .stApp {
-        background-color: #000000;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* Títulos */
-    .custom-title {
-        font-size: 3.5rem;
-        font-weight: 600;
-        color: #ffffff;
-        text-align: center;
-        margin-top: 2rem;
-        margin-bottom: 3rem;
-        line-height: 1.1;
-    }
-
-    /* Uploader (Estilo Oscuro Limpio) */
-    [data-testid='stFileUploader'] {
-        background-color: #111827;
-        border: 2px dashed #3f3f46;
-        border-radius: 20px;
-        padding: 30px;
-    }
-    
-    /* Botón Verde */
-    .stButton > button {
-        width: 100%;
-        background-color: #22c55e;
-        color: white;
+    /* Botón Descarga */
+    .stButton > button { 
+        width: 100%; 
+        font-weight: bold; 
+        border-radius: 8px; 
+        padding: 0.8rem; 
+        background-color: #2ea043; 
+        color: white; 
         border: none;
-        padding: 14px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        margin-top: 20px;
-        transition: all 0.2s;
+        font-size: 1.1rem;
     }
-    .stButton > button:hover {
-        background-color: #16a34a;
-    }
-    
-    /* Inputs (Login) */
-    .stTextInput > div > div > input {
-        background-color: #111827;
-        color: #ffffff;
-        border: 1px solid #374151;
-        border-radius: 8px;
-        padding: 10px;
-    }
+    .stButton > button:hover { background-color: #238636; }
 
-    /* Área de Texto */
+    /* Caja de texto */
     .stTextArea textarea {
-        background-color: #1c1c1c;
-        color: #e5e5e5;
-        border: 1px solid #333;
-        border-radius: 8px;
+        background-color: #fdfbf7;
+        color: #1f1f1f;
+        border-radius: 4px;
         font-family: 'Georgia', serif;
         font-size: 15px;
         line-height: 1.6;
+        border: 1px solid #444;
     }
     
-    /* Ocultar elementos extra */
     #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. SISTEMA DE LOGIN (EL PORTERO) ---
-def check_password():
-    """Si devuelve False, detiene la app."""
-    if st.session_state.get("password_correct", False):
-        return True
-
-    # Diseño de la pantalla de bloqueo
-    st.markdown('<div style="text-align:center; margin-top:100px; margin-bottom:20px;"><h2 style="color:white;">Acceso Profesional</h2></div>', unsafe_allow_html=True)
+# --- 2. CEREBRO CON "FRENO DE MANO" ---
+def transcribir_con_corte(api_key, archivo_bytes):
+    genai.configure(api_key=api_key)
     
-    password = st.text_input("Introduce tu Licencia", type="password", placeholder="XXXX-XXXX-XXXX")
-    
-    if st.button("ENTRAR"):
-        # CLAVES VÁLIDAS:
-        # 1. Tu clave maestra: F90-ADMIN
-        # 2. Simulación Lemon Squeezy: Cualquier texto largo con guiones (ej: 1234-ABCD)
-        if password == "F90-ADMIN" or (len(password) > 8 and "-" in password):
-            st.session_state["password_correct"] = True
-            st.rerun()
-        else:
-            st.error("⛔ Licencia no válida")
-            
-    return False
-
-# ¡AQUÍ ESTÁ EL CANDADO! Si no pasa, se para todo.
-if not check_password():
-    st.stop()
-
-# ======================================================
-#  SI LLEGA AQUÍ, ES QUE HA ENTRADO (ZONA PRIVADA)
-# ======================================================
-
-# Título Principal
-st.markdown('<div class="custom-title">Transforma tus PDFs<br>en texto limpio.</div>', unsafe_allow_html=True)
-
-# --- 4. GESTIÓN DE CLAVES (RENDER) ---
-api_key = os.environ.get("GOOGLE_API_KEY")
-if not api_key:
-    try:
-        api_key = st.secrets["GOOGLE_API_KEY"]
-    except:
-        pass
-
-if not api_key:
-    st.error("⛔ Error: Falta la API Key. Configúrala en Render.")
-    st.stop()
-
-# --- 5. LÓGICA DEL CEREBRO ---
-def transcribir_con_corte(key, archivo_bytes):
-    genai.configure(api_key=key)
-    # Usamos 1.5 Pro para máxima calidad y cero errores vacíos
+    # Usamos el modelo Pro para asegurar que entiende la instrucción de parada
     model = genai.GenerativeModel('models/gemini-pro-latest')
     
     prompt = """
@@ -149,49 +65,72 @@ def transcribir_con_corte(key, archivo_bytes):
     - Copia literal palabra por palabra hasta el punto de corte.
     - Elimina los sellos ("TIMBRE DEL ESTADO", "0,15 €", "NIHIL PRIUS") que manchan el texto.
     - Los párrafos bien separados y estructurados como en la original
-    Devuelve JSON: { "texto_cortado": "Texto limpio..." }
+
+    Devuelve un JSON con un solo campo:
+    {
+        "texto_cortado": "El texto literal limpio hasta antes de Protección de Datos."
+    }
     """
-    config = genai.types.GenerationConfig(temperature=0.0, response_mime_type="application/json")
-    try:
-        response = model.generate_content([{'mime_type': 'application/pdf', 'data': archivo_bytes}, prompt], generation_config=config)
-        return response.text
-    except Exception:
-        return None
+    
+    config = genai.types.GenerationConfig(
+        temperature=0.0,
+        response_mime_type="application/json"
+    )
+
+    response = model.generate_content(
+        [{'mime_type': 'application/pdf', 'data': archivo_bytes}, prompt],
+        generation_config=config
+    )
+    return response.text
 
 def limpiar_json(texto):
     return texto.replace("```json", "").replace("```", "").strip()
 
-# --- 6. INTERFAZ DE LA HERRAMIENTA ---
-uploaded_file = st.file_uploader("Sube tu archivo PDF", type=['pdf'])
+# --- 3. INTERFAZ ---
+st.title("Convierte PDF en texto listo para usar")
+st.markdown("#### Transcripción Literal de documentos")
+
+# --- AQUÍ ESTÁ EL ÚNICO CAMBIO (Soporte para Render) ---
+api_key = os.environ.get("GOOGLE_API_KEY")
+if not api_key:
+    try:
+        api_key = st.secrets["GOOGLE_API_KEY"]
+    except:
+        pass
+
+if not api_key:
+    st.error("⛔ Falta API Key en Secrets o Variables de Entorno.")
+    st.stop()
+# -------------------------------------------------------
+
+uploaded_file = st.file_uploader("Sube la escritura (PDF)", type=['pdf'])
+st.markdown("<hr style='border-color: #333;'>", unsafe_allow_html=True)
 
 if uploaded_file:
     if st.button("PROCESAR DOCUMENTO"):
-        with st.spinner('🧠 Analizando...'):
+        with st.spinner('🧠 Transcribiendo'):
             try:
                 bytes_data = uploaded_file.read()
-                resultado = transcribir_con_corte(api_key, bytes_data)
                 
-                if resultado:
-                    datos = json.loads(limpiar_json(resultado))
-                    texto_final = datos.get("texto_cortado", "")
-                    
-                    if texto_final:
-                        st.success("✅ Completado")
-                        st.download_button(
-                            label="⬇️ DESCARGAR TEXTO (.TXT)",
-                            data=texto_final,
-                            file_name="escritura_limpia.txt",
-                            mime="text/plain"
-                        )
-                        st.text_area("Vista Previa", value=texto_final, height=600)
-                    else:
-                        st.warning("El documento parece vacío o no legible.")
-                else:
-                    st.error("Error de conexión con la IA.")
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+                # Llamada usando la variable api_key detectada
+                resultado = transcribir_con_corte(api_key, bytes_data)
+                datos = json.loads(limpiar_json(resultado))
+                texto_final = datos.get("texto_cortado", "")
+                
+                st.success("✅ Documento Recortado y Limpio")
+                
+                # BOTÓN DE DESCARGA
+                st.download_button(
+                    label="⬇️ DESCARGAR TEXTO (.TXT)",
+                    data=texto_final,
+                    file_name="escritura_cuerpo.txt",
+                    mime="text/plain"
+                )
+                
+                # VISTA PREVIA
+                st.text_area("Vista Previa", value=texto_final, height=600, label_visibility="collapsed")
 
-# Botón discreto para cerrar sesión (abajo)
-if st.button("Cerrar Sesión", type="secondary"):
-    st.session_state["password_correct"] = False
-    st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+                if "404" in str(e):
+                    st.warning("Verifica tu API Key.")
