@@ -229,7 +229,7 @@ def show_landing():
     
     with col3:
         st.markdown("### 03. PRIVACIDAD")
-        st.markdown("<div style='color: #888; font-size: 0.9rem;'>Detecta automáticamente la cláusula RGPD y corta la transcripción antes de procesar datos sensibles.</div>", unsafe_allow_html=True)
+        st.markdown("<div style='color: #888; font-size: 0.9rem;'>Detecta automáticamente la cláusula RGPD para no añadir broza.</div>", unsafe_allow_html=True)
 
     st.write("##")
     st.write("##")
